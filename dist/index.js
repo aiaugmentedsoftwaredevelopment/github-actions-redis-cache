@@ -37969,20 +37969,26 @@ async function createTarball(paths, outputFile, compression) {
     core.debug(`  Working directory: ${workingDir}`);
     try {
         // Use tar command for better performance
+        // Note: tar doesn't accept compression level as a separate flag like `-6`
+        // We need to use environment variable GZIP to set compression level
         const tarArgs = [
             '-czf',
             outputFile,
-            `-${compression}`, // Compression level
             '-T',
             fileListPath,
             '--ignore-failed-read', // Continue if some files don't exist
         ];
-        core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
+        core.debug(`  Executing: GZIP=-${compression} tar ${tarArgs.join(' ')}`);
+        core.debug(`  This will compress with gzip level ${compression}`);
         let tarOutput = '';
         let tarError = '';
         const exitCode = await exec.exec('tar', tarArgs, {
             cwd: workingDir,
             silent: true,
+            env: {
+                ...process.env,
+                GZIP: `-${compression}`, // Set gzip compression level via environment variable
+            },
             listeners: {
                 stdout: (data) => {
                     tarOutput += data.toString();
@@ -37994,11 +38000,26 @@ async function createTarball(paths, outputFile, compression) {
         });
         if (exitCode !== 0) {
             core.error(`tar command failed with exit code ${exitCode}`);
+            core.error(`  Command: tar ${tarArgs.join(' ')}`);
+            core.error(`  Working directory: ${workingDir}`);
+            core.error(`  File list path: ${fileListPath}`);
             if (tarError) {
-                core.error(`tar stderr: ${tarError}`);
+                core.error(`  tar stderr: ${tarError}`);
+            }
+            else {
+                core.error(`  tar stderr: (empty)`);
             }
             if (tarOutput) {
-                core.debug(`tar stdout: ${tarOutput}`);
+                core.error(`  tar stdout: ${tarOutput}`);
+            }
+            // Exit code 64 typically means usage error
+            if (exitCode === 64) {
+                core.error('');
+                core.error('Exit code 64 indicates a command-line usage error.');
+                core.error('Possible causes:');
+                core.error('  - Invalid tar arguments (compression level may not be supported)');
+                core.error('  - File list format issue');
+                core.error('  - Incompatible tar version');
             }
             throw new Error(`tar command failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
         }
