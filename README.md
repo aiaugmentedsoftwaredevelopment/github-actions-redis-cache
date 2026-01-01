@@ -128,7 +128,24 @@ Caches are automatically scoped by repository to prevent collisions:
 
 ## Deployment Guide
 
-### Option 1: Deploy Valkey on Kubernetes
+### Option 1: Deploy with Pulumi (Recommended)
+
+Use our Pulumi infrastructure-as-code for automated deployment:
+
+```bash
+cd pulumi
+npm install
+pulumi stack init dev
+pulumi up
+```
+
+See the [Pulumi README](pulumi/README.md) for detailed instructions, including:
+- Automatic GitHub Actions deployment
+- Configuration options
+- Stack outputs for easy integration
+- Infrastructure updates and rollbacks
+
+### Option 2: Deploy Valkey Manually with kubectl
 
 ```bash
 # Create namespace
@@ -187,7 +204,7 @@ spec:
 EOF
 ```
 
-### Option 2: Use Existing Redis
+### Option 3: Use Existing Redis
 
 Point to your existing Redis instance:
 
