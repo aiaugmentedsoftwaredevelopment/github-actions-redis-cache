@@ -10,6 +10,8 @@ A GitHub Action for ultra-fast dependency caching using Redis/Valkey. Built for 
 - **🎯 Smart Restore**: Supports exact and prefix-matched cache keys
 - **📦 Optimized Compression**: Configurable compression levels for optimal performance
 - **🔧 Zero Infrastructure**: Uses existing Redis/Valkey deployments
+- **🔍 Comprehensive Logging**: Verbose debug logging with timing metrics for easy troubleshooting
+- **🛡️ Smart Error Handling**: Detailed error messages with actionable troubleshooting guidance
 
 ## Use Cases
 
@@ -96,6 +98,118 @@ jobs:
 |--------|-------------|
 | `cache-hit` | Boolean indicating exact cache match |
 | `cache-matched-key` | The actual key used to restore cache |
+
+## Debugging & Logging
+
+The action provides comprehensive verbose logging to help diagnose issues and understand cache operations.
+
+### Enabling Debug Logging
+
+Enable debug logging by setting the `ACTIONS_STEP_DEBUG` secret in your repository:
+
+```yaml
+# In your workflow file
+- name: Cache Dependencies
+  uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  env:
+    ACTIONS_STEP_DEBUG: true
+  with:
+    path: ~/.pub-cache
+    key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+```
+
+Or enable it globally via repository settings: **Settings → Secrets and variables → Actions → New repository secret**
+- Name: `ACTIONS_STEP_DEBUG`
+- Value: `true`
+
+### What Gets Logged
+
+**Startup Information:**
+- Platform and Node.js version
+- Redis configuration (host, port, authentication status)
+- Compression level and TTL settings
+
+**Cache Restore Phase:**
+- Redis connection status and retry attempts
+- Cache key lookup (exact match and pattern matching)
+- SCAN iterations for restore key patterns
+- Tarball extraction timing (write, extract, total)
+- Cache hit/miss status with statistics
+
+**Cache Save Phase:**
+- Glob pattern resolution timing and results
+- Path validation statistics
+- Tarball creation timing (compression, file read)
+- Redis upload timing and speed
+- Cache verification status
+
+**Example Debug Output:**
+```
+🚀 Redis Cache Action - Restore Phase
+  Running on: linux x64
+  Node version: v20.12.2
+  Configuration:
+    Redis Host: valkey-cache.github-actions-cache.svc.cluster.local
+    Redis Port: 6379
+    Redis Auth: Disabled
+    TTL: 604800s (7 days)
+    Compression: Level 6
+🔌 Connecting to Redis...
+  Target: valkey-cache.github-actions-cache.svc.cluster.local:6379
+  Status: Connected and ready
+🔍 Looking for cache with key: linux-pub-abc123
+  Full Redis key: owner/repo:linux-pub-abc123
+  ✅ Exact cache hit!
+💾 Extracting cache (125.4 MB)...
+  Write time: 45ms
+  Extract time: 1250ms
+  Total restore time: 1295ms
+✅ Cache restored successfully!
+```
+
+### Error Messages with Troubleshooting
+
+The action provides specific troubleshooting guidance for common errors:
+
+**Redis Connection Errors:**
+- `ECONNREFUSED`: Connection refused with networking troubleshooting steps
+- `ENOTFOUND`: DNS resolution failure with hostname verification steps
+- `NOAUTH`: Authentication failure with credential checking steps
+- `ETIMEDOUT`: Connection timeout with server health checks
+
+**Tar Command Errors:**
+- `command not found`: Missing tar utility with installation instructions
+- `Permission denied`: File permission issues with diagnostic commands
+- `No space left`: Disk space issues with cleanup suggestions
+
+**Redis Operation Errors:**
+- `Out of memory`: Redis memory exhausted with eviction policy guidance
+- `Cache verification failed`: Upload issues with debugging steps
+
+**Example Error Output:**
+```
+⚠️ Failed to save cache: tar command not found - please install tar utility
+
+Troubleshooting:
+  - tar command is not available on this system
+  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)
+  - Verify tar is in PATH: which tar
+
+ℹ️ Job will continue despite cache save failure
+For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting
+```
+
+### Performance Metrics
+
+All major operations include timing metrics in debug logs:
+- **Glob pattern resolution**: Time to resolve file patterns
+- **Path validation**: Time to verify file existence
+- **Tarball creation**: Compression and file read timing
+- **Tarball extraction**: Decompression timing
+- **Redis operations**: Upload/download speed and latency
+- **Cache verification**: Key existence checking time
+
+These metrics help identify performance bottlenecks in your cache operations.
 
 ## Cache Key Design
 
@@ -268,36 +382,122 @@ Valkey/Redis automatically manages memory using LRU (Least Recently Used) evicti
 
 ## Troubleshooting
 
+### Quick Diagnostics
+
+**Enable debug logging first!** See the [Debugging & Logging](#debugging--logging) section for detailed instructions.
+
+The action automatically provides troubleshooting guidance in error messages. Check your workflow logs for:
+- Specific error type (e.g., `ECONNREFUSED`, `command not found`)
+- Actionable troubleshooting steps
+- Links to this documentation
+
 ### Cache Not Restoring
 
-**Check Redis connectivity:**
+**The action will log specific reasons for cache misses:**
+- No exact key match found
+- Restore key patterns didn't match any cached keys
+- Cache was evicted due to TTL expiration or memory pressure
+
+**Manual verification:**
 ```bash
-# From runner
+# From runner - check Redis connectivity
 redis-cli -h valkey-cache.github-actions-cache.svc.cluster.local ping
 # Expected: PONG
-```
 
-**Check cache exists:**
-```bash
 # List all cache keys for your repo
 redis-cli --scan --pattern "owner/repo:*"
 ```
+
+**Common causes:**
+1. **Different cache key**: Verify `hashFiles()` produces consistent values
+2. **Cache evicted**: Check Redis memory usage and TTL settings
+3. **Network issues**: Enable debug logs to see connection details
+4. **Wrong Redis host**: Verify `redis-host` matches your deployment
+
+### Connection Errors
+
+The action provides specific guidance for connection issues:
+
+**ECONNREFUSED (Connection refused):**
+- Redis server not running
+- Wrong host or port
+- Firewall blocking connection
+- Check debug logs for connection target
+
+**ENOTFOUND (DNS resolution failed):**
+- Hostname doesn't exist
+- DNS configuration issue
+- Try using IP address instead
+
+**ETIMEDOUT (Connection timeout):**
+- Redis server overloaded
+- Network latency too high
+- Check Redis server health
+
+### Tar Command Issues
+
+If you see "tar command not found" errors:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install tar
+
+# RHEL/CentOS
+sudo yum install tar
+
+# Alpine Linux
+apk add tar
+
+# macOS (usually pre-installed)
+brew install gnu-tar
+```
+
+**Note:** Most GitHub-hosted runners include tar by default. This typically only affects custom Docker containers.
 
 ### Large Cache Sizes
 
 If your cache is > 1GB, consider:
 1. **Reduce cached paths**: Only cache essential dependencies
-2. **Increase compression**: Use `compression: 9` for maximum compression
+2. **Increase compression**: Use `compression: 9` for maximum compression (slower but smaller)
 3. **Shorter TTL**: Reduce `ttl` to clean up old caches faster
+4. **Check debug logs**: Review what files are being cached
+
+The action warns when cache size exceeds 1GB with suggestions for optimization.
 
 ### Redis Out of Memory
 
-Increase `maxmemory` or enable automatic eviction:
+The action will report "Out of memory" errors with guidance when Redis maxmemory is reached.
+
+**Quick fix - increase memory limit:**
 ```bash
 # Update Valkey deployment
 kubectl set env deployment/valkey-cache -n github-actions-cache \
   VALKEY_MAXMEMORY=8gb
+
+# Or edit the deployment directly
+kubectl edit deployment valkey-cache -n github-actions-cache
 ```
+
+**Verify eviction policy:**
+```bash
+kubectl exec -n github-actions-cache deployment/valkey-cache -- \
+  valkey-cli CONFIG GET maxmemory-policy
+# Should return: allkeys-lru
+```
+
+### Permission Errors
+
+If you see "Permission denied" errors:
+
+**During cache save:**
+- Check write permissions for `RUNNER_TEMP` directory
+- Verify source files are readable
+
+**During cache restore:**
+- Check write permissions for target directories
+- Verify runner has appropriate permissions
+
+Debug logs will show the specific directory causing issues.
 
 ## Advanced Usage
 
