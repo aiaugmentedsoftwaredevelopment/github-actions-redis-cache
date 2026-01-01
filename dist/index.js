@@ -37673,18 +37673,20 @@ async function run() {
                 // Extract cache
                 const tempDir = process.env.RUNNER_TEMP || '/tmp';
                 const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
+                // Extract to current working directory (same as where archive was created)
+                const workingDir = process.cwd();
                 core.info(`💾 Extracting cache (${(0, utils_1.formatBytes)(cacheData.length)})...`);
                 core.debug(`  Temp file: ${tempFile}`);
-                core.debug(`  Target directory: /`);
+                core.debug(`  Target directory: ${workingDir}`);
                 try {
                     // Write cache data to temp file
                     const writeStart = Date.now();
                     fs.writeFileSync(tempFile, cacheData);
                     const writeTime = Date.now() - writeStart;
                     core.debug(`  Write time: ${writeTime}ms`);
-                    // Extract to filesystem root
+                    // Extract to working directory (not root!)
                     const extractStart = Date.now();
-                    await (0, utils_1.extractTarball)(tempFile, '/');
+                    await (0, utils_1.extractTarball)(tempFile, workingDir);
                     const extractTime = Date.now() - extractStart;
                     core.debug(`  Extract time: ${extractTime}ms`);
                     core.info(`✅ Cache restored successfully!`);
@@ -38048,8 +38050,10 @@ async function createTarball(paths, outputFile, compression) {
 }
 /**
  * Extract tarball to filesystem
+ * NOTE: targetDir should match the working directory used during tarball creation
+ * to properly resolve relative paths
  */
-async function extractTarball(tarballPath, targetDir = '/') {
+async function extractTarball(tarballPath, targetDir) {
     core.debug(`Extracting tarball: ${tarballPath}`);
     core.debug(`  Target directory: ${targetDir}`);
     // Add verbose flag for better diagnostics

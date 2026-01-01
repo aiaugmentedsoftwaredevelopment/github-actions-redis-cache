@@ -38076,8 +38076,10 @@ async function createTarball(paths, outputFile, compression) {
 }
 /**
  * Extract tarball to filesystem
+ * NOTE: targetDir should match the working directory used during tarball creation
+ * to properly resolve relative paths
  */
-async function extractTarball(tarballPath, targetDir = '/') {
+async function extractTarball(tarballPath, targetDir) {
     core.debug(`Extracting tarball: ${tarballPath}`);
     core.debug(`  Target directory: ${targetDir}`);
     // Add verbose flag for better diagnostics

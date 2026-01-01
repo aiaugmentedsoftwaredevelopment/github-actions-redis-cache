@@ -270,10 +270,12 @@ export async function createTarball(
 
 /**
  * Extract tarball to filesystem
+ * NOTE: targetDir should match the working directory used during tarball creation
+ * to properly resolve relative paths
  */
 export async function extractTarball(
   tarballPath: string,
-  targetDir: string = '/'
+  targetDir: string
 ): Promise<void> {
   core.debug(`Extracting tarball: ${tarballPath}`);
   core.debug(`  Target directory: ${targetDir}`);

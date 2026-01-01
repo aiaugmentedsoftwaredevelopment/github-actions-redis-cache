@@ -27,8 +27,10 @@ export declare function resolveGlobPaths(patterns: string[]): Promise<string[]>;
 export declare function createTarball(paths: string[], outputFile: string, compression: number): Promise<void>;
 /**
  * Extract tarball to filesystem
+ * NOTE: targetDir should match the working directory used during tarball creation
+ * to properly resolve relative paths
  */
-export declare function extractTarball(tarballPath: string, targetDir?: string): Promise<void>;
+export declare function extractTarball(tarballPath: string, targetDir: string): Promise<void>;
 /**
  * Get file size in human-readable format
  */

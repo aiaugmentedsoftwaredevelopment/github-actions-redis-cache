@@ -136,9 +136,12 @@ async function run(): Promise<void> {
         const tempDir = process.env.RUNNER_TEMP || '/tmp';
         const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
 
+        // Extract to current working directory (same as where archive was created)
+        const workingDir = process.cwd();
+
         core.info(`💾 Extracting cache (${formatBytes(cacheData.length)})...`);
         core.debug(`  Temp file: ${tempFile}`);
-        core.debug(`  Target directory: /`);
+        core.debug(`  Target directory: ${workingDir}`);
 
         try {
           // Write cache data to temp file
@@ -147,9 +150,9 @@ async function run(): Promise<void> {
           const writeTime = Date.now() - writeStart;
           core.debug(`  Write time: ${writeTime}ms`);
 
-          // Extract to filesystem root
+          // Extract to working directory (not root!)
           const extractStart = Date.now();
-          await extractTarball(tempFile, '/');
+          await extractTarball(tempFile, workingDir);
           const extractTime = Date.now() - extractStart;
           core.debug(`  Extract time: ${extractTime}ms`);
 
