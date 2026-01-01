@@ -3,11 +3,16 @@
  * Automatically selects the best available compression format
  */
 import { CompressionHandler, CompressionFormat } from './types';
+export type CompressionBackend = 'auto' | 'native' | 'shell';
 /**
  * Get the best available compression handler based on system capabilities
- * Handlers are selected by priority: tar+gzip (100) > zip (50) > gzip (25)
+ * Handlers are selected by priority
+ * Native handlers (always available): tar+gzip-native (200) > zip-native (150) > gzip-native (100)
+ * Shell handlers (require tools): tar+gzip (100) > zip (50) > gzip (25)
+ *
+ * @param backend - Compression backend preference: 'auto' (default), 'native', or 'shell'
  */
-export declare function getBestCompressionHandler(): Promise<CompressionHandler>;
+export declare function getBestCompressionHandler(backend?: CompressionBackend): Promise<CompressionHandler>;
 /**
  * Get a specific compression handler by format
  * Throws error if format is not available

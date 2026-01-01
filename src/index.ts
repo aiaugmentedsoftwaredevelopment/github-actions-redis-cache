@@ -2,7 +2,10 @@ import * as core from '@actions/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import {createRedisClient, scanKeys, getCacheKey, CacheConfig} from './redis';
-import {getBestCompressionHandler} from './compression';
+import {
+  getBestCompressionHandler,
+  CompressionBackend,
+} from './compression';
 import {formatBytes} from './utils';
 
 async function run(): Promise<void> {
@@ -20,6 +23,8 @@ async function run(): Promise<void> {
     const redisPassword = core.getInput('redis-password') || undefined;
     const ttl = parseInt(core.getInput('ttl'), 10);
     const compression = parseInt(core.getInput('compression'), 10);
+    const compressionBackend = (core.getInput('compression-backend') ||
+      'auto') as CompressionBackend;
 
     core.debug('Configuration:');
     core.debug(`  Redis Host: ${redisHost}`);
@@ -27,6 +32,7 @@ async function run(): Promise<void> {
     core.debug(`  Redis Auth: ${redisPassword ? 'Enabled' : 'Disabled'}`);
     core.debug(`  TTL: ${ttl}s (${Math.round(ttl / 86400)} days)`);
     core.debug(`  Compression: Level ${compression}`);
+    core.debug(`  Compression Backend: ${compressionBackend}`);
 
     // Parse paths
     const paths = pathsInput
@@ -128,7 +134,9 @@ async function run(): Promise<void> {
 
       if (cacheData) {
         // Get compression handler
-        const compressionHandler = await getBestCompressionHandler();
+        const compressionHandler = await getBestCompressionHandler(
+          compressionBackend
+        );
 
         // Extract cache
         const tempDir = process.env.RUNNER_TEMP || '/tmp';
@@ -200,6 +208,7 @@ async function run(): Promise<void> {
         core.saveState('redis-password', redisPassword || '');
         core.saveState('ttl', ttl.toString());
         core.saveState('compression', compression.toString());
+        core.saveState('compression-backend', compressionBackend);
       }
     } finally {
       await redis.quit();
