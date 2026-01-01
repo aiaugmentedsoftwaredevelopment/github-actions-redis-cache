@@ -1,0 +1,31 @@
+name: valkey-cache
+description: Valkey cache infrastructure for GitHub Actions
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+config:
+  valkey-cache:namespace:
+    description: Kubernetes namespace for Valkey deployment
+    default: github-actions-cache
+  valkey-cache:maxMemory:
+    description: Maximum memory for Valkey (e.g., 4gb)
+    default: 4gb
+  valkey-cache:replicas:
+    description: Number of Valkey replicas
+    default: 1
+  valkey-cache:memoryRequest:
+    description: Memory request for Valkey pod
+    default: 2Gi
+  valkey-cache:memoryLimit:
+    description: Memory limit for Valkey pod
+    default: 4Gi
+  valkey-cache:cpuRequest:
+    description: CPU request for Valkey pod
+    default: 500m
+  valkey-cache:cpuLimit:
+    description: CPU limit for Valkey pod
+    default: 2000m
+  valkey-cache:image:
+    description: Valkey container image
+    default: valkey/valkey:latest
