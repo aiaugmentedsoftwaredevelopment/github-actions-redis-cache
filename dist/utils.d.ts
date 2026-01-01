@@ -20,6 +20,9 @@ export declare function scanKeys(redis: Redis, pattern: string): Promise<string[
 export declare function resolveGlobPaths(patterns: string[]): Promise<string[]>;
 /**
  * Create tarball from paths
+ *
+ * TODO: Future enhancement - Support multiple compression formats (tar, zip, etc.)
+ * and auto-detect available compression tools. See issue for details.
  */
 export declare function createTarball(paths: string[], outputFile: string, compression: number): Promise<void>;
 /**
