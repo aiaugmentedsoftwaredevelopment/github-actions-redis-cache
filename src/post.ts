@@ -1,15 +1,9 @@
 import * as core from '@actions/core';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  createRedisClient,
-  resolveGlobPaths,
-  createTarball,
-  formatBytes,
-  getCacheKey,
-  validatePaths,
-  CacheConfig,
-} from './utils';
+import {createRedisClient, getCacheKey, CacheConfig} from './redis';
+import {getBestCompressionHandler} from './compression';
+import {resolveGlobPaths, validatePaths, formatBytes} from './utils';
 
 async function run(): Promise<void> {
   try {
@@ -58,7 +52,9 @@ async function run(): Promise<void> {
     core.debug(`  Paths found: ${resolvedPaths.length}`);
 
     if (resolvedPaths.length === 0) {
-      core.warning('⚠️  No files found matching cache patterns - skipping cache save');
+      core.warning(
+        '⚠️  No files found matching cache patterns - skipping cache save'
+      );
       core.info('Patterns searched:');
       pathPatterns.forEach(p => core.info(`   - ${p}`));
       core.error('');
@@ -108,30 +104,39 @@ async function run(): Promise<void> {
     core.debug(`  Status: Connected and ready`);
 
     try {
-      // Create tarball
+      // Get compression handler
+      const compressionHandler = await getBestCompressionHandler();
+
+      // Create archive
       const tempDir = process.env.RUNNER_TEMP || '/tmp';
       const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
 
       core.info(`🗜️  Creating compressed archive (level ${compression})...`);
       core.debug(`  Temp file: ${tempFile}`);
       core.debug(`  Files to archive: ${validPaths.length}`);
+      core.debug(`  Using format: ${compressionHandler.format}`);
 
       try {
         const tarStart = Date.now();
         try {
-          await createTarball(validPaths, tempFile, compression);
+          await compressionHandler.compress(validPaths, tempFile, compression);
           const tarTime = Date.now() - tarStart;
-          core.debug(`  Tar creation time: ${tarTime}ms`);
+          core.debug(`  Archive creation time: ${tarTime}ms`);
         } catch (tarError) {
-          const errorMsg = tarError instanceof Error ? tarError.message : String(tarError);
-          core.error(`Failed to create tarball: ${errorMsg}`);
+          const errorMsg =
+            tarError instanceof Error ? tarError.message : String(tarError);
+          core.error(`Failed to create archive: ${errorMsg}`);
           core.error('');
           core.error('Troubleshooting:');
 
-          if (errorMsg.includes('command not found') || errorMsg.includes('ENOENT')) {
-            core.error('  - tar command is not available on this system');
-            core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
-            core.error('  - Verify tar is in PATH: which tar');
+          if (
+            errorMsg.includes('command not found') ||
+            errorMsg.includes('ENOENT')
+          ) {
+            core.error('  - Compression tool is not available on this system');
+            core.error('  - Install tar: apt-get install tar (Ubuntu)');
+            core.error('  - Install zip: apt-get install zip (Ubuntu)');
+            core.error('  - Install gzip: apt-get install gzip (Ubuntu)');
           } else if (errorMsg.includes('Permission denied')) {
             core.error('  - Check file permissions for source paths');
             core.error('  - Verify write permissions for temp directory');
@@ -149,12 +154,12 @@ async function run(): Promise<void> {
           throw tarError;
         }
 
-        // Read tarball
+        // Read archive
         const readStart = Date.now();
         const cacheData = fs.readFileSync(tempFile);
         const sizeBytes = cacheData.length;
         const readTime = Date.now() - readStart;
-        core.debug(`  Tar read time: ${readTime}ms`);
+        core.debug(`  Archive read time: ${readTime}ms`);
 
         core.info(`   Archive size: ${formatBytes(sizeBytes)}`);
 
@@ -182,6 +187,7 @@ async function run(): Promise<void> {
         core.info(`   Key: ${key}`);
         core.info(`   Size: ${formatBytes(sizeBytes)}`);
         core.info(`   Files: ${validPaths.length}`);
+        core.info(`   Format: ${compressionHandler.format}`);
         core.info(`   Compression: Level ${compression}`);
         core.info(`   TTL: ${ttl} seconds (${Math.round(ttl / 86400)} days)`);
         core.info(`   Upload time: ${uploadTime}ms`);
@@ -199,7 +205,9 @@ async function run(): Promise<void> {
         core.debug(`  Verification time: ${verifyTime}ms`);
 
         if (!exists) {
-          throw new Error('Cache verification failed - key does not exist after save');
+          throw new Error(
+            'Cache verification failed - key does not exist after save'
+          );
         }
 
         core.debug(`  ✅ Cache verification passed`);
@@ -238,7 +246,10 @@ async function run(): Promise<void> {
       core.error('  - Verify redis-host is correct');
       core.error('  - Check DNS configuration');
       core.error('  - Try using IP address instead of hostname');
-    } else if (errorMsg.includes('authentication') || errorMsg.includes('NOAUTH')) {
+    } else if (
+      errorMsg.includes('authentication') ||
+      errorMsg.includes('NOAUTH')
+    ) {
       core.error('');
       core.error('Authentication failed:');
       core.error('  - Verify redis-password is correct');
@@ -268,7 +279,9 @@ async function run(): Promise<void> {
 
     core.info('');
     core.info('ℹ️  Job will continue despite cache save failure');
-    core.info('For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting');
+    core.info(
+      'For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting'
+    );
   }
 }
 
