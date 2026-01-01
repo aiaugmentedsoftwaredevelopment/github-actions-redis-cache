@@ -11,6 +11,7 @@ A GitHub Action for ultra-fast dependency caching using Redis/Valkey. Built for 
 - **🔄 Drop-in Replacement**: Compatible with `actions/cache` API
 - **🎯 Smart Restore**: Supports exact and prefix-matched cache keys
 - **📦 Optimized Compression**: Configurable compression levels for optimal performance
+- **🌍 Cross-Platform**: Native Node.js compression works on Windows, Linux, macOS without external tools
 - **🔧 Zero Infrastructure**: Uses existing Redis/Valkey deployments
 - **🔍 Comprehensive Logging**: Verbose debug logging with timing metrics for easy troubleshooting
 - **🛡️ Smart Error Handling**: Detailed error messages with actionable troubleshooting guidance
@@ -105,6 +106,7 @@ jobs:
 | `redis-password` | Redis/Valkey password (if auth enabled) | No | - |
 | `ttl` | Cache TTL in seconds | No | `604800` (7 days) |
 | `compression` | Compression level (0-9) | No | `6` |
+| `compression-backend` | Compression backend: `auto`, `native`, or `shell` | No | `auto` |
 
 ## Outputs
 
@@ -253,6 +255,120 @@ restore-keys: |
 Caches are automatically scoped by repository to prevent collisions:
 - Input key: `linux-pub-abc123`
 - Actual Redis key: `owner/repo:linux-pub-abc123`
+
+## Compression Options
+
+The action supports multiple compression backends for maximum flexibility and cross-platform compatibility.
+
+### Compression Backend Modes
+
+| Mode | Description | Use Case | External Dependencies |
+|------|-------------|----------|----------------------|
+| `auto` (default) | Prefers native Node.js libraries, falls back to shell commands | **Recommended** - Best compatibility | None required |
+| `native` | Only uses Node.js libraries (tar-stream, archiver, zlib) | Windows, minimal containers, Docker images | None |
+| `shell` | Only uses shell commands (tar, zip, gzip) | When shell tools are faster or required | tar, zip, or gzip |
+
+### Usage Examples
+
+**Default (auto mode) - Recommended:**
+```yaml
+- uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  with:
+    path: ~/.pub-cache
+    key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+    compression: 6  # Compression level (0-9)
+    # compression-backend: auto (default, no need to specify)
+```
+
+**Native mode - For Windows or minimal containers:**
+```yaml
+- uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  with:
+    path: ~/.pub-cache
+    key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+    compression-backend: native  # Pure Node.js, no external tools needed
+    compression: 9  # Higher compression for smaller caches
+```
+
+**Shell mode - For maximum performance with pre-installed tools:**
+```yaml
+- uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  with:
+    path: ~/.pub-cache
+    key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+    compression-backend: shell  # Uses system tar/zip/gzip
+    compression: 6
+```
+
+### Compression Format Selection
+
+The action automatically selects the best compression format based on availability and priority:
+
+**Native handlers (always available):**
+- `tar+gzip` (priority: 200) - Best compression ratio, most compatible
+- `zip` (priority: 150) - Good Windows compatibility
+- `gzip` (priority: 100) - Basic compression
+
+**Shell handlers (require external tools):**
+- `tar+gzip` (priority: 100) - Requires `tar` command
+- `zip` (priority: 50) - Requires `zip` command
+- `gzip` (priority: 25) - Requires `gzip` command
+
+### Compression Levels
+
+All backends support compression levels 0-9:
+- **0**: No compression (fastest, largest size)
+- **1-3**: Fast compression (good for CI/CD)
+- **6**: Balanced (default, recommended)
+- **9**: Maximum compression (slowest, smallest size)
+
+**Choosing the right level:**
+```yaml
+# Fast builds, larger cache
+compression: 3
+
+# Balanced (default)
+compression: 6
+
+# Slow builds, smaller cache (network-constrained)
+compression: 9
+```
+
+### Platform-Specific Recommendations
+
+**Windows runners:**
+```yaml
+compression-backend: native  # No need to install Unix tools
+```
+
+**Linux/macOS with shell tools:**
+```yaml
+compression-backend: auto  # Automatically uses native (faster selection)
+```
+
+**Docker containers (minimal images):**
+```yaml
+compression-backend: native  # No need to add tar/zip to image
+```
+
+**Self-hosted runners:**
+```yaml
+compression-backend: auto  # Flexible, works everywhere
+```
+
+### Troubleshooting Compression
+
+**"tar command not found" error:**
+- Switch to `compression-backend: native`
+- Or install tar: `apt-get install tar`
+
+**Slow compression/decompression:**
+- Lower compression level: `compression: 3`
+- Use `native` backend for consistent performance
+
+**Large cache sizes:**
+- Increase compression level: `compression: 9`
+- Review cached paths to exclude unnecessary files
 
 ## Deployment Guide
 
