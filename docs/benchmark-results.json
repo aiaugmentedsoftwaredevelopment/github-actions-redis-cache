@@ -1,0 +1,642 @@
+[
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 36.706834,
+      "compressedSize": 1547836,
+      "ratio": "70.48",
+      "cpuTime": 0.05088699999999999,
+      "memoryUsed": -2424872,
+      "throughput": 136.21441718454935
+    },
+    "decompression": {
+      "time": 19.79929100000001,
+      "cpuTime": 0.03458900000000001,
+      "memoryUsed": 1675000
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 8.088915999999983,
+      "compressedSize": 321330,
+      "ratio": "93.87",
+      "cpuTime": 0.009611000000000008,
+      "memoryUsed": 106144,
+      "throughput": 618.1297963781562
+    },
+    "decompression": {
+      "time": 8.628041999999994,
+      "cpuTime": 0.025199,
+      "memoryUsed": 858576
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 41.68025,
+      "compressedSize": 194727,
+      "ratio": "96.29",
+      "cpuTime": 0.04230800000000001,
+      "memoryUsed": 59976,
+      "throughput": 119.96089274896383
+    },
+    "decompression": {
+      "time": 10.654375000000016,
+      "cpuTime": 0.035336000000000034,
+      "memoryUsed": 769160
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 66.23375000000001,
+      "compressedSize": 183718,
+      "ratio": "96.50",
+      "cpuTime": 0.078426,
+      "memoryUsed": -3271632,
+      "throughput": 75.49021458093493
+    },
+    "decompression": {
+      "time": 12.393791000000022,
+      "cpuTime": 0.044142000000000015,
+      "memoryUsed": 814672
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 47.15912500000002,
+      "compressedSize": 1547821,
+      "ratio": "70.48",
+      "cpuTime": 0.06179000000000001,
+      "memoryUsed": 1245688,
+      "throughput": 106.02401974167243
+    },
+    "decompression": {
+      "time": 19.665250000000015,
+      "cpuTime": 0.03706799999999999,
+      "memoryUsed": 922464
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 14.26720899999998,
+      "compressedSize": 321226,
+      "ratio": "93.87",
+      "cpuTime": 0.01724900000000007,
+      "memoryUsed": 443184,
+      "throughput": 350.45396755595345
+    },
+    "decompression": {
+      "time": 9.01687499999997,
+      "cpuTime": 0.020534000000000052,
+      "memoryUsed": 991808
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 54.65975000000003,
+      "compressedSize": 194725,
+      "ratio": "96.29",
+      "cpuTime": 0.07739200000000002,
+      "memoryUsed": -3648152,
+      "throughput": 91.47498845128266
+    },
+    "decompression": {
+      "time": 10.294250000000034,
+      "cpuTime": 0.025158000000000014,
+      "memoryUsed": 1261416
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 73.66654100000005,
+      "compressedSize": 183602,
+      "ratio": "96.50",
+      "cpuTime": 0.082754,
+      "memoryUsed": 382496,
+      "throughput": 67.87341895148839
+    },
+    "decompression": {
+      "time": 8.980541000000017,
+      "cpuTime": 0.018196999999999908,
+      "memoryUsed": 996912
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 41.420625000000086,
+      "compressedSize": 1547836,
+      "ratio": "70.48",
+      "cpuTime": 0.03521299999999994,
+      "memoryUsed": 226056,
+      "throughput": 120.7128091379594
+    },
+    "decompression": {
+      "time": 13.512625000000071,
+      "cpuTime": 0.02698299999999998,
+      "memoryUsed": -2403976
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 7.227708000000007,
+      "compressedSize": 321330,
+      "ratio": "93.87",
+      "cpuTime": 0.007689999999999975,
+      "memoryUsed": 72344,
+      "throughput": 691.7822358069799
+    },
+    "decompression": {
+      "time": 6.9785830000000715,
+      "cpuTime": 0.019100999999999924,
+      "memoryUsed": 679600
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 43.398833999999965,
+      "compressedSize": 194727,
+      "ratio": "96.29",
+      "cpuTime": 0.04388700000000001,
+      "memoryUsed": 63248,
+      "throughput": 115.21046855774983
+    },
+    "decompression": {
+      "time": 9.091041999999902,
+      "cpuTime": 0.024307999999999996,
+      "memoryUsed": 768888
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 67.8745419999999,
+      "compressedSize": 183718,
+      "ratio": "96.50",
+      "cpuTime": 0.08229500000000001,
+      "memoryUsed": -2052600,
+      "throughput": 73.66532211738544
+    },
+    "decompression": {
+      "time": 9.795375000000035,
+      "cpuTime": 0.017377000000000198,
+      "memoryUsed": 732352
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 30.79591700000003,
+      "compressedSize": 945901,
+      "ratio": "81.96",
+      "cpuTime": 0.001614999999999922,
+      "memoryUsed": 182464,
+      "throughput": 162.35918547254155
+    },
+    "decompression": {
+      "time": 23.149874999999952,
+      "cpuTime": 0.001546999999999965,
+      "memoryUsed": 186584
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 27.486749999999915,
+      "compressedSize": 322250,
+      "ratio": "93.85",
+      "cpuTime": 0.0014250000000000096,
+      "memoryUsed": 191904,
+      "throughput": 181.90582735317983
+    },
+    "decompression": {
+      "time": 22.65020800000002,
+      "cpuTime": 0.0015650000000000386,
+      "memoryUsed": 406272
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 33.99141599999996,
+      "compressedSize": 184652,
+      "ratio": "96.48",
+      "cpuTime": 0.0017979999999999663,
+      "memoryUsed": 202688,
+      "throughput": 147.0959609331958
+    },
+    "decompression": {
+      "time": 18.656334000000015,
+      "cpuTime": 0.001487000000000016,
+      "memoryUsed": 195064
+    }
+  },
+  {
+    "fileSize": "5MB",
+    "fileSizeBytes": 5242880,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 42.79541699999993,
+      "compressedSize": 184651,
+      "ratio": "96.48",
+      "cpuTime": 0.0016699999999998383,
+      "memoryUsed": 200336,
+      "throughput": 116.8349405264589
+    },
+    "decompression": {
+      "time": 18.884750000000054,
+      "cpuTime": 0.001598999999999906,
+      "memoryUsed": 193896
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 993.303791,
+      "compressedSize": 51993843,
+      "ratio": "75.21",
+      "cpuTime": 1.0477030000000003,
+      "memoryUsed": -42252032,
+      "throughput": 201.34827009836712
+    },
+    "decompression": {
+      "time": 520.7574169999998,
+      "cpuTime": 0.8977999999999997,
+      "memoryUsed": 463000
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 288.91879199999994,
+      "compressedSize": 12706786,
+      "ratio": "93.94",
+      "cpuTime": 0.3311479999999998,
+      "memoryUsed": -1929688,
+      "throughput": 692.236038422866
+    },
+    "decompression": {
+      "time": 339.346,
+      "cpuTime": 0.6582170000000005,
+      "memoryUsed": 690904
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 1731.7146669999997,
+      "compressedSize": 7645473,
+      "ratio": "96.35",
+      "cpuTime": 1.755623,
+      "memoryUsed": -154616,
+      "throughput": 115.49246755903353
+    },
+    "decompression": {
+      "time": 325.6682499999997,
+      "cpuTime": 0.6158429999999999,
+      "memoryUsed": -387160
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "tar+gzip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 2701.064542000001,
+      "compressedSize": 7175167,
+      "ratio": "96.58",
+      "cpuTime": 2.728321000000001,
+      "memoryUsed": 319056,
+      "throughput": 74.04488004270722
+    },
+    "decompression": {
+      "time": 347.9061669999992,
+      "cpuTime": 0.6456669999999995,
+      "memoryUsed": 1447368
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 1133.607583000001,
+      "compressedSize": 51993844,
+      "ratio": "75.21",
+      "cpuTime": 1.4891310000000004,
+      "memoryUsed": -379856,
+      "throughput": 176.4278953310423
+    },
+    "decompression": {
+      "time": 549.368375,
+      "cpuTime": 0.9308359999999993,
+      "memoryUsed": -1537248
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 465.03920800000014,
+      "compressedSize": 12706655,
+      "ratio": "93.94",
+      "cpuTime": 0.7575369999999992,
+      "memoryUsed": 806456,
+      "throughput": 430.0712640126463
+    },
+    "decompression": {
+      "time": 347.82354199999827,
+      "cpuTime": 0.6254840000000002,
+      "memoryUsed": 2174376
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 1914.9650840000013,
+      "compressedSize": 7645477,
+      "ratio": "96.35",
+      "cpuTime": 2.178321000000002,
+      "memoryUsed": -2081120,
+      "throughput": 104.4405465515004
+    },
+    "decompression": {
+      "time": 341.53591699999924,
+      "cpuTime": 0.5861459999999994,
+      "memoryUsed": 3366400
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "zip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 2854.9742080000015,
+      "compressedSize": 7175038,
+      "ratio": "96.58",
+      "cpuTime": 3.1445640000000026,
+      "memoryUsed": -4716496,
+      "throughput": 70.05317226319401
+    },
+    "decompression": {
+      "time": 347.4783750000006,
+      "cpuTime": 0.5896340000000002,
+      "memoryUsed": 3118976
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 949.4234589999978,
+      "compressedSize": 51993843,
+      "ratio": "75.21",
+      "cpuTime": 1.0393489999999979,
+      "memoryUsed": -3203128,
+      "throughput": 210.6541586940085
+    },
+    "decompression": {
+      "time": 523.5319579999996,
+      "cpuTime": 0.9803130000000024,
+      "memoryUsed": 951056
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 288.02900000000227,
+      "compressedSize": 12706786,
+      "ratio": "93.94",
+      "cpuTime": 0.3268450000000023,
+      "memoryUsed": -669616,
+      "throughput": 694.3745247874292
+    },
+    "decompression": {
+      "time": 355.9030410000014,
+      "cpuTime": 0.6765010000000018,
+      "memoryUsed": 1075128
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 1722.534667,
+      "compressedSize": 7645473,
+      "ratio": "96.35",
+      "cpuTime": 1.7427139999999994,
+      "memoryUsed": -506752,
+      "throughput": 116.10796800294528
+    },
+    "decompression": {
+      "time": 342.86929099999907,
+      "cpuTime": 0.6451419999999999,
+      "memoryUsed": -1032104
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "native",
+    "format": "gzip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 2684.944875000001,
+      "compressedSize": 7175167,
+      "ratio": "96.58",
+      "cpuTime": 2.698378999999999,
+      "memoryUsed": 771208,
+      "throughput": 74.48942503894048
+    },
+    "decompression": {
+      "time": 368.25087500000154,
+      "cpuTime": 0.6698789999999981,
+      "memoryUsed": -764024
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 1,
+    "compression": {
+      "time": 1109.9572499999995,
+      "compressedSize": 37697555,
+      "ratio": "82.02",
+      "cpuTime": 0.0012859999999967897,
+      "memoryUsed": 183520,
+      "throughput": 180.18711981925438
+    },
+    "decompression": {
+      "time": 824.9422500000001,
+      "cpuTime": 0.0016809999999978231,
+      "memoryUsed": 180048
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 3,
+    "compression": {
+      "time": 802.5295420000002,
+      "compressedSize": 12705046,
+      "ratio": "93.94",
+      "cpuTime": 0.001456000000001012,
+      "memoryUsed": 181944,
+      "throughput": 249.21200969322066
+    },
+    "decompression": {
+      "time": 664.2035420000029,
+      "cpuTime": 0.0013150000000017315,
+      "memoryUsed": 180072
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 6,
+    "compression": {
+      "time": 1251.197458999999,
+      "compressedSize": 7174779,
+      "ratio": "96.58",
+      "cpuTime": 0.0014469999999988659,
+      "memoryUsed": 181928,
+      "throughput": 159.84687193965934
+    },
+    "decompression": {
+      "time": 627.473917000003,
+      "cpuTime": 0.005034000000001981,
+      "memoryUsed": 306328
+    }
+  },
+  {
+    "fileSize": "200MB",
+    "fileSizeBytes": 209715200,
+    "backend": "shell",
+    "format": "zip",
+    "compressionLevel": 9,
+    "compression": {
+      "time": 1495.1468750000022,
+      "compressedSize": 7174778,
+      "ratio": "96.58",
+      "cpuTime": 0.0015579999999992822,
+      "memoryUsed": 180600,
+      "throughput": 133.7661224754255
+    },
+    "decompression": {
+      "time": 630.2883750000001,
+      "cpuTime": 0.00137499999999946,
+      "memoryUsed": 180760
+    }
+  }
+]
