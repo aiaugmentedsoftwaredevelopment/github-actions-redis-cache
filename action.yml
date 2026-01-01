@@ -40,6 +40,14 @@ inputs:
     description: 'Compression level for cache (0-9, default: 6)'
     required: false
     default: '6'
+  compression-backend:
+    description: |
+      Compression backend to use: auto (default), native, or shell.
+      - auto: Prefer Node.js libraries, fallback to shell commands
+      - native: Only use Node.js libraries (no external tools)
+      - shell: Only use shell commands (requires tar/zip/gzip installed)
+    required: false
+    default: 'auto'
 
 outputs:
   cache-hit:
