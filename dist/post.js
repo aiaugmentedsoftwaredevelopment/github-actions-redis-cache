@@ -41660,6 +41660,743 @@ module.exports = union;
 
 /***/ }),
 
+/***/ 29103:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+// lz4.js - An implementation of Lz4 in plain JavaScript.
+//
+// TODO:
+// - Unify header parsing/writing.
+// - Support options (block size, checksums)
+// - Support streams
+// - Better error handling (handle bad offset, etc.)
+// - HC support (better search algorithm)
+// - Tests/benchmarking
+
+var xxhash = __nccwpck_require__(91928);
+var util = __nccwpck_require__(7853);
+
+// Constants
+// --
+
+// Compression format parameters/constants.
+var minMatch = 4;
+var minLength = 13;
+var searchLimit = 5;
+var skipTrigger = 6;
+var hashSize = 1 << 16;
+
+// Token constants.
+var mlBits = 4;
+var mlMask = (1 << mlBits) - 1;
+var runBits = 4;
+var runMask = (1 << runBits) - 1;
+
+// Shared buffers
+var blockBuf = makeBuffer(5 << 20);
+var hashTable = makeHashTable();
+
+// Frame constants.
+var magicNum = 0x184D2204;
+
+// Frame descriptor flags.
+var fdContentChksum = 0x4;
+var fdContentSize = 0x8;
+var fdBlockChksum = 0x10;
+// var fdBlockIndep = 0x20;
+var fdVersion = 0x40;
+var fdVersionMask = 0xC0;
+
+// Block sizes.
+var bsUncompressed = 0x80000000;
+var bsDefault = 7;
+var bsShift = 4;
+var bsMask = 7;
+var bsMap = {
+  4: 0x10000,
+  5: 0x40000,
+  6: 0x100000,
+  7: 0x400000
+};
+
+// Utility functions/primitives
+// --
+
+// Makes our hashtable. On older browsers, may return a plain array.
+function makeHashTable () {
+  try {
+    return new Uint32Array(hashSize);
+  } catch (error) {
+    var hashTable = new Array(hashSize);
+
+    for (var i = 0; i < hashSize; i++) {
+      hashTable[i] = 0;
+    }
+
+    return hashTable;
+  }
+}
+
+// Clear hashtable.
+function clearHashTable (table) {
+  for (var i = 0; i < hashSize; i++) {
+    hashTable[i] = 0;
+  }
+}
+
+// Makes a byte buffer. On older browsers, may return a plain array.
+function makeBuffer (size) {
+  try {
+    return new Uint8Array(size);
+  } catch (error) {
+    var buf = new Array(size);
+
+    for (var i = 0; i < size; i++) {
+      buf[i] = 0;
+    }
+
+    return buf;
+  }
+}
+
+function sliceArray (array, start, end) {
+  if (typeof array.buffer !== undefined) {
+    if (Uint8Array.prototype.slice) {
+      return array.slice(start, end);
+    } else {
+      // Uint8Array#slice polyfill.
+      var len = array.length;
+
+      // Calculate start.
+      start = start | 0;
+      start = (start < 0) ? Math.max(len + start, 0) : Math.min(start, len);
+
+      // Calculate end.
+      end = (end === undefined) ? len : end | 0;
+      end = (end < 0) ? Math.max(len + end, 0) : Math.min(end, len);
+
+      // Copy into new array.
+      var arraySlice = new Uint8Array(end - start);
+      for (var i = start, n = 0; i < end;) {
+        arraySlice[n++] = array[i++];
+      }
+
+      return arraySlice;
+    }
+  } else {
+    // Assume normal array.
+    return array.slice(start, end);
+  }
+}
+
+// Implementation
+// --
+
+// Calculates an upper bound for lz4 compression.
+exports.compressBound = function compressBound (n) {
+  return (n + (n / 255) + 16) | 0;
+};
+
+// Calculates an upper bound for lz4 decompression, by reading the data.
+exports.decompressBound = function decompressBound (src) {
+  var sIndex = 0;
+
+  // Read magic number
+  if (util.readU32(src, sIndex) !== magicNum) {
+    throw new Error('invalid magic number');
+  }
+
+  sIndex += 4;
+
+  // Read descriptor
+  var descriptor = src[sIndex++];
+
+  // Check version
+  if ((descriptor & fdVersionMask) !== fdVersion) {
+    throw new Error('incompatible descriptor version ' + (descriptor & fdVersionMask));
+  }
+
+  // Read flags
+  var useBlockSum = (descriptor & fdBlockChksum) !== 0;
+  var useContentSize = (descriptor & fdContentSize) !== 0;
+
+  // Read block size
+  var bsIdx = (src[sIndex++] >> bsShift) & bsMask;
+
+  if (bsMap[bsIdx] === undefined) {
+    throw new Error('invalid block size ' + bsIdx);
+  }
+
+  var maxBlockSize = bsMap[bsIdx];
+
+  // Get content size
+  if (useContentSize) {
+    return util.readU64(src, sIndex);
+  }
+
+  // Checksum
+  sIndex++;
+
+  // Read blocks.
+  var maxSize = 0;
+  while (true) {
+    var blockSize = util.readU32(src, sIndex);
+    sIndex += 4;
+
+    if (blockSize & bsUncompressed) {
+      blockSize &= ~bsUncompressed;
+      maxSize += blockSize;
+    } else {
+      maxSize += maxBlockSize;
+    }
+
+    if (blockSize === 0) {
+      return maxSize;
+    }
+
+    if (useBlockSum) {
+      sIndex += 4;
+    }
+
+    sIndex += blockSize;
+  }
+};
+
+// Creates a buffer of a given byte-size, falling back to plain arrays.
+exports.makeBuffer = makeBuffer;
+
+// Decompresses a block of Lz4.
+exports.decompressBlock = function decompressBlock (src, dst, sIndex, sLength, dIndex) {
+  var mLength, mOffset, sEnd, n, i;
+
+  // Setup initial state.
+  sEnd = sIndex + sLength;
+
+  // Consume entire input block.
+  while (sIndex < sEnd) {
+    var token = src[sIndex++];
+
+    // Copy literals.
+    var literalCount = (token >> 4);
+    if (literalCount > 0) {
+      // Parse length.
+      if (literalCount === 0xf) {
+        while (true) {
+          literalCount += src[sIndex];
+          if (src[sIndex++] !== 0xff) {
+            break;
+          }
+        }
+      }
+
+      // Copy literals
+      for (n = sIndex + literalCount; sIndex < n;) {
+        dst[dIndex++] = src[sIndex++];
+      }
+    }
+
+    if (sIndex >= sEnd) {
+      break;
+    }
+
+    // Copy match.
+    mLength = (token & 0xf);
+
+    // Parse offset.
+    mOffset = src[sIndex++] | (src[sIndex++] << 8);
+
+    // Parse length.
+    if (mLength === 0xf) {
+      while (true) {
+        mLength += src[sIndex];
+        if (src[sIndex++] !== 0xff) {
+          break;
+        }
+      }
+    }
+
+    mLength += minMatch;
+
+    // Copy match.
+    for (i = dIndex - mOffset, n = i + mLength; i < n;) {
+      dst[dIndex++] = dst[i++] | 0;
+    }
+  }
+
+  return dIndex;
+};
+
+// Compresses a block with Lz4.
+exports.compressBlock = function compressBlock (src, dst, sIndex, sLength, hashTable) {
+  var mIndex, mAnchor, mLength, mOffset, mStep;
+  var literalCount, dIndex, sEnd, n;
+
+  // Setup initial state.
+  dIndex = 0;
+  sEnd = sLength + sIndex;
+  mAnchor = sIndex;
+
+  // Process only if block is large enough.
+  if (sLength >= minLength) {
+    var searchMatchCount = (1 << skipTrigger) + 3;
+
+    // Consume until last n literals (Lz4 spec limitation.)
+    while (sIndex + minMatch < sEnd - searchLimit) {
+      var seq = util.readU32(src, sIndex);
+      var hash = util.hashU32(seq) >>> 0;
+
+      // Crush hash to 16 bits.
+      hash = ((hash >> 16) ^ hash) >>> 0 & 0xffff;
+
+      // Look for a match in the hashtable. NOTE: remove one; see below.
+      mIndex = hashTable[hash] - 1;
+
+      // Put pos in hash table. NOTE: add one so that zero = invalid.
+      hashTable[hash] = sIndex + 1;
+
+      // Determine if there is a match (within range.)
+      if (mIndex < 0 || ((sIndex - mIndex) >>> 16) > 0 || util.readU32(src, mIndex) !== seq) {
+        mStep = searchMatchCount++ >> skipTrigger;
+        sIndex += mStep;
+        continue;
+      }
+
+      searchMatchCount = (1 << skipTrigger) + 3;
+
+      // Calculate literal count and offset.
+      literalCount = sIndex - mAnchor;
+      mOffset = sIndex - mIndex;
+
+      // We've already matched one word, so get that out of the way.
+      sIndex += minMatch;
+      mIndex += minMatch;
+
+      // Determine match length.
+      // N.B.: mLength does not include minMatch, Lz4 adds it back
+      // in decoding.
+      mLength = sIndex;
+      while (sIndex < sEnd - searchLimit && src[sIndex] === src[mIndex]) {
+        sIndex++;
+        mIndex++;
+      }
+      mLength = sIndex - mLength;
+
+      // Write token + literal count.
+      var token = mLength < mlMask ? mLength : mlMask;
+      if (literalCount >= runMask) {
+        dst[dIndex++] = (runMask << mlBits) + token;
+        for (n = literalCount - runMask; n >= 0xff; n -= 0xff) {
+          dst[dIndex++] = 0xff;
+        }
+        dst[dIndex++] = n;
+      } else {
+        dst[dIndex++] = (literalCount << mlBits) + token;
+      }
+
+      // Write literals.
+      for (var i = 0; i < literalCount; i++) {
+        dst[dIndex++] = src[mAnchor + i];
+      }
+
+      // Write offset.
+      dst[dIndex++] = mOffset;
+      dst[dIndex++] = (mOffset >> 8);
+
+      // Write match length.
+      if (mLength >= mlMask) {
+        for (n = mLength - mlMask; n >= 0xff; n -= 0xff) {
+          dst[dIndex++] = 0xff;
+        }
+        dst[dIndex++] = n;
+      }
+
+      // Move the anchor.
+      mAnchor = sIndex;
+    }
+  }
+
+  // Nothing was encoded.
+  if (mAnchor === 0) {
+    return 0;
+  }
+
+  // Write remaining literals.
+  // Write literal token+count.
+  literalCount = sEnd - mAnchor;
+  if (literalCount >= runMask) {
+    dst[dIndex++] = (runMask << mlBits);
+    for (n = literalCount - runMask; n >= 0xff; n -= 0xff) {
+      dst[dIndex++] = 0xff;
+    }
+    dst[dIndex++] = n;
+  } else {
+    dst[dIndex++] = (literalCount << mlBits);
+  }
+
+  // Write literals.
+  sIndex = mAnchor;
+  while (sIndex < sEnd) {
+    dst[dIndex++] = src[sIndex++];
+  }
+
+  return dIndex;
+};
+
+// Decompresses a frame of Lz4 data.
+exports.decompressFrame = function decompressFrame (src, dst) {
+  var useBlockSum, useContentSum, useContentSize, descriptor;
+  var sIndex = 0;
+  var dIndex = 0;
+
+  // Read magic number
+  if (util.readU32(src, sIndex) !== magicNum) {
+    throw new Error('invalid magic number');
+  }
+
+  sIndex += 4;
+
+  // Read descriptor
+  descriptor = src[sIndex++];
+
+  // Check version
+  if ((descriptor & fdVersionMask) !== fdVersion) {
+    throw new Error('incompatible descriptor version');
+  }
+
+  // Read flags
+  useBlockSum = (descriptor & fdBlockChksum) !== 0;
+  useContentSum = (descriptor & fdContentChksum) !== 0;
+  useContentSize = (descriptor & fdContentSize) !== 0;
+
+  // Read block size
+  var bsIdx = (src[sIndex++] >> bsShift) & bsMask;
+
+  if (bsMap[bsIdx] === undefined) {
+    throw new Error('invalid block size');
+  }
+
+  if (useContentSize) {
+    // TODO: read content size
+    sIndex += 8;
+  }
+
+  sIndex++;
+
+  // Read blocks.
+  while (true) {
+    var compSize;
+
+    compSize = util.readU32(src, sIndex);
+    sIndex += 4;
+
+    if (compSize === 0) {
+      break;
+    }
+
+    if (useBlockSum) {
+      // TODO: read block checksum
+      sIndex += 4;
+    }
+
+    // Check if block is compressed
+    if ((compSize & bsUncompressed) !== 0) {
+      // Mask off the 'uncompressed' bit
+      compSize &= ~bsUncompressed;
+
+      // Copy uncompressed data into destination buffer.
+      for (var j = 0; j < compSize; j++) {
+        dst[dIndex++] = src[sIndex++];
+      }
+    } else {
+      // Decompress into blockBuf
+      dIndex = exports.decompressBlock(src, dst, sIndex, compSize, dIndex);
+      sIndex += compSize;
+    }
+  }
+
+  if (useContentSum) {
+    // TODO: read content checksum
+    sIndex += 4;
+  }
+
+  return dIndex;
+};
+
+// Compresses data to an Lz4 frame.
+exports.compressFrame = function compressFrame (src, dst) {
+  var dIndex = 0;
+
+  // Write magic number.
+  util.writeU32(dst, dIndex, magicNum);
+  dIndex += 4;
+
+  // Descriptor flags.
+  dst[dIndex++] = fdVersion;
+  dst[dIndex++] = bsDefault << bsShift;
+
+  // Descriptor checksum.
+  dst[dIndex] = xxhash.hash(0, dst, 4, dIndex - 4) >> 8;
+  dIndex++;
+
+  // Write blocks.
+  var maxBlockSize = bsMap[bsDefault];
+  var remaining = src.length;
+  var sIndex = 0;
+
+  // Clear the hashtable.
+  clearHashTable(hashTable);
+
+  // Split input into blocks and write.
+  while (remaining > 0) {
+    var compSize = 0;
+    var blockSize = remaining > maxBlockSize ? maxBlockSize : remaining;
+
+    compSize = exports.compressBlock(src, blockBuf, sIndex, blockSize, hashTable);
+
+    if (compSize > blockSize || compSize === 0) {
+      // Output uncompressed.
+      util.writeU32(dst, dIndex, 0x80000000 | blockSize);
+      dIndex += 4;
+
+      for (var z = sIndex + blockSize; sIndex < z;) {
+        dst[dIndex++] = src[sIndex++];
+      }
+
+      remaining -= blockSize;
+    } else {
+      // Output compressed.
+      util.writeU32(dst, dIndex, compSize);
+      dIndex += 4;
+
+      for (var j = 0; j < compSize;) {
+        dst[dIndex++] = blockBuf[j++];
+      }
+
+      sIndex += blockSize;
+      remaining -= blockSize;
+    }
+  }
+
+  // Write blank end block.
+  util.writeU32(dst, dIndex, 0);
+  dIndex += 4;
+
+  return dIndex;
+};
+
+// Decompresses a buffer containing an Lz4 frame. maxSize is optional; if not
+// provided, a maximum size will be determined by examining the data. The
+// buffer returned will always be perfectly-sized.
+exports.decompress = function decompress (src, maxSize) {
+  var dst, size;
+
+  if (maxSize === undefined) {
+    maxSize = exports.decompressBound(src);
+  }
+
+  dst = exports.makeBuffer(maxSize);
+  size = exports.decompressFrame(src, dst);
+
+  if (size !== maxSize) {
+    dst = sliceArray(dst, 0, size);
+  }
+
+  return dst;
+};
+
+// Compresses a buffer to an Lz4 frame. maxSize is optional; if not provided,
+// a buffer will be created based on the theoretical worst output size for a
+// given input size. The buffer returned will always be perfectly-sized.
+exports.compress = function compress (src, maxSize) {
+  var dst, size;
+
+  if (maxSize === undefined) {
+    maxSize = exports.compressBound(src.length);
+  }
+
+  dst = exports.makeBuffer(maxSize);
+  size = exports.compressFrame(src, dst);
+
+  if (size !== maxSize) {
+    dst = sliceArray(dst, 0, size);
+  }
+
+  return dst;
+};
+
+
+/***/ }),
+
+/***/ 7853:
+/***/ ((__unused_webpack_module, exports) => {
+
+// Simple hash function, from: http://burtleburtle.net/bob/hash/integer.html.
+// Chosen because it doesn't use multiply and achieves full avalanche.
+exports.hashU32 = function hashU32 (a) {
+  a = a | 0;
+  a = a + 2127912214 + (a << 12) | 0;
+  a = a ^ -949894596 ^ a >>> 19;
+  a = a + 374761393 + (a << 5) | 0;
+  a = a + -744332180 ^ a << 9;
+  a = a + -42973499 + (a << 3) | 0;
+  return a ^ -1252372727 ^ a >>> 16 | 0;
+};
+
+// Reads a 64-bit little-endian integer from an array.
+exports.readU64 = function readU64 (b, n) {
+  var x = 0;
+  x |= b[n++] << 0;
+  x |= b[n++] << 8;
+  x |= b[n++] << 16;
+  x |= b[n++] << 24;
+  x |= b[n++] << 32;
+  x |= b[n++] << 40;
+  x |= b[n++] << 48;
+  x |= b[n++] << 56;
+  return x;
+};
+
+// Reads a 32-bit little-endian integer from an array.
+exports.readU32 = function readU32 (b, n) {
+  var x = 0;
+  x |= b[n++] << 0;
+  x |= b[n++] << 8;
+  x |= b[n++] << 16;
+  x |= b[n++] << 24;
+  return x;
+};
+
+// Writes a 32-bit little-endian integer from an array.
+exports.writeU32 = function writeU32 (b, n, x) {
+  b[n++] = (x >> 0) & 0xff;
+  b[n++] = (x >> 8) & 0xff;
+  b[n++] = (x >> 16) & 0xff;
+  b[n++] = (x >> 24) & 0xff;
+};
+
+// Multiplies two numbers using 32-bit integer multiplication.
+// Algorithm from Emscripten.
+exports.imul = function imul (a, b) {
+  var ah = a >>> 16;
+  var al = a & 65535;
+  var bh = b >>> 16;
+  var bl = b & 65535;
+
+  return al * bl + (ah * bl + al * bh << 16) | 0;
+};
+
+
+/***/ }),
+
+/***/ 91928:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+// xxh32.js - implementation of xxhash32 in plain JavaScript
+var util = __nccwpck_require__(7853);
+
+// xxhash32 primes
+var prime1 = 0x9e3779b1;
+var prime2 = 0x85ebca77;
+var prime3 = 0xc2b2ae3d;
+var prime4 = 0x27d4eb2f;
+var prime5 = 0x165667b1;
+
+// Utility functions/primitives
+// --
+
+function rotl32 (x, r) {
+  x = x | 0;
+  r = r | 0;
+
+  return x >>> (32 - r | 0) | x << r | 0;
+}
+
+function rotmul32 (h, r, m) {
+  h = h | 0;
+  r = r | 0;
+  m = m | 0;
+
+  return util.imul(h >>> (32 - r | 0) | h << r, m) | 0;
+}
+
+function shiftxor32 (h, s) {
+  h = h | 0;
+  s = s | 0;
+
+  return h >>> s ^ h | 0;
+}
+
+// Implementation
+// --
+
+function xxhapply (h, src, m0, s, m1) {
+  return rotmul32(util.imul(src, m0) + h, s, m1);
+}
+
+function xxh1 (h, src, index) {
+  return rotmul32((h + util.imul(src[index], prime5)), 11, prime1);
+}
+
+function xxh4 (h, src, index) {
+  return xxhapply(h, util.readU32(src, index), prime3, 17, prime4);
+}
+
+function xxh16 (h, src, index) {
+  return [
+    xxhapply(h[0], util.readU32(src, index + 0), prime2, 13, prime1),
+    xxhapply(h[1], util.readU32(src, index + 4), prime2, 13, prime1),
+    xxhapply(h[2], util.readU32(src, index + 8), prime2, 13, prime1),
+    xxhapply(h[3], util.readU32(src, index + 12), prime2, 13, prime1)
+  ];
+}
+
+function xxh32 (seed, src, index, len) {
+  var h, l;
+  l = len;
+  if (len >= 16) {
+    h = [
+      seed + prime1 + prime2,
+      seed + prime2,
+      seed,
+      seed - prime1
+    ];
+
+    while (len >= 16) {
+      h = xxh16(h, src, index);
+
+      index += 16;
+      len -= 16;
+    }
+
+    h = rotl32(h[0], 1) + rotl32(h[1], 7) + rotl32(h[2], 12) + rotl32(h[3], 18) + l;
+  } else {
+    h = (seed + prime5 + len) >>> 0;
+  }
+
+  while (len >= 4) {
+    h = xxh4(h, src, index);
+
+    index += 4;
+    len -= 4;
+  }
+
+  while (len > 0) {
+    h = xxh1(h, src, index);
+
+    index++;
+    len--;
+  }
+
+  h = shiftxor32(util.imul(shiftxor32(util.imul(shiftxor32(h, 15), prime2), 13), prime3), 16);
+
+  return h >>> 0;
+}
+
+exports.hash = xxh32;
+
+
+/***/ }),
+
 /***/ 43772:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -79698,6 +80435,7 @@ const detector_1 = __nccwpck_require__(15962);
 // Shell-based handlers serve as fallbacks (require external tools)
 const handlerRegistry = [
     // Native handlers (no external dependencies)
+    new formats_1.Lz4NativeHandler(), // Priority: 250 (DEFAULT - fastest)
     new formats_1.TarGzipNativeHandler(), // Priority: 200
     new formats_1.ZipNativeHandler(), // Priority: 150
     new formats_1.GzipNativeHandler(), // Priority: 100
@@ -79727,8 +80465,10 @@ function filterHandlersByBackend(handlers, backend) {
 /**
  * Get the best available compression handler based on system capabilities
  * Handlers are selected by priority
- * Native handlers (always available): tar+gzip-native (200) > zip-native (150) > gzip-native (100)
+ * Native handlers (always available): lz4 (250) > tar+gzip-native (200) > zip-native (150) > gzip-native (100)
  * Shell handlers (require tools): tar+gzip (100) > zip (50) > gzip (25)
+ *
+ * Default: LZ4 (fastest compression/decompression)
  *
  * @param backend - Compression backend preference: 'auto' (default), 'native', or 'shell'
  */
@@ -80287,7 +81027,7 @@ exports.GzipHandler = GzipHandler;
  * Export all compression format handlers
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.GzipNativeHandler = exports.ZipNativeHandler = exports.TarGzipNativeHandler = exports.GzipHandler = exports.ZipHandler = exports.TarGzipHandler = void 0;
+exports.Lz4NativeHandler = exports.GzipNativeHandler = exports.ZipNativeHandler = exports.TarGzipNativeHandler = exports.GzipHandler = exports.ZipHandler = exports.TarGzipHandler = void 0;
 // Shell-based handlers
 var tar_gzip_1 = __nccwpck_require__(31787);
 Object.defineProperty(exports, "TarGzipHandler", ({ enumerable: true, get: function () { return tar_gzip_1.TarGzipHandler; } }));
@@ -80302,6 +81042,283 @@ var zip_native_1 = __nccwpck_require__(86792);
 Object.defineProperty(exports, "ZipNativeHandler", ({ enumerable: true, get: function () { return zip_native_1.ZipNativeHandler; } }));
 var gzip_native_1 = __nccwpck_require__(62761);
 Object.defineProperty(exports, "GzipNativeHandler", ({ enumerable: true, get: function () { return gzip_native_1.GzipNativeHandler; } }));
+var lz4_native_1 = __nccwpck_require__(77827);
+Object.defineProperty(exports, "Lz4NativeHandler", ({ enumerable: true, get: function () { return lz4_native_1.Lz4NativeHandler; } }));
+
+
+/***/ }),
+
+/***/ 77827:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Native Node.js LZ4 compression format handler
+ * Uses lz4js for ultra-fast compression without external tools
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Lz4NativeHandler = void 0;
+const core = __importStar(__nccwpck_require__(37484));
+const fs = __importStar(__nccwpck_require__(79896));
+const path = __importStar(__nccwpck_require__(16928));
+const lz4 = __importStar(__nccwpck_require__(29103));
+const tar = __importStar(__nccwpck_require__(56118));
+const types_1 = __nccwpck_require__(42319);
+const utils_1 = __nccwpck_require__(71798);
+class Lz4NativeHandler {
+    format = types_1.CompressionFormat.LZ4;
+    priority = 250; // Highest priority - fastest compression/decompression
+    async detect() {
+        // Pure JavaScript implementation is always available
+        return true;
+    }
+    async compress(paths, outputFile, compressionLevel) {
+        core.debug(`[lz4-native] Creating archive with ${paths.length} paths at level ${compressionLevel}`);
+        core.debug(`[lz4-native] Output: ${outputFile}`);
+        core.debug('[lz4-native] Note: Creating tar+lz4 archive (tar + lz4 compression)');
+        const workingDir = process.cwd();
+        const pack = tar.pack();
+        let totalFiles = 0;
+        try {
+            // Process each path
+            for (const sourcePath of paths) {
+                const absolutePath = path.isAbsolute(sourcePath)
+                    ? sourcePath
+                    : path.resolve(workingDir, sourcePath);
+                // Use basename for archiving to avoid path traversal issues
+                const archiveName = path.basename(absolutePath);
+                await this.addToTar(pack, absolutePath, archiveName);
+                totalFiles++;
+            }
+            // Finalize the tar archive
+            pack.finalize();
+            // Collect tar data into buffer
+            const tarChunks = [];
+            pack.on('data', (chunk) => {
+                tarChunks.push(chunk);
+            });
+            await new Promise((resolve, reject) => {
+                pack.on('end', () => resolve());
+                pack.on('error', reject);
+            });
+            // Combine tar chunks
+            const tarBuffer = Buffer.concat(tarChunks);
+            // Compress with LZ4
+            core.debug(`[lz4-native] Compressing ${(0, utils_1.formatBytes)(tarBuffer.length)} tar data with LZ4`);
+            // lz4js compress returns Uint8Array
+            const compressed = lz4.compress(new Uint8Array(tarBuffer));
+            const compressedBuffer = Buffer.from(compressed);
+            // Write compressed data to file
+            await fs.promises.writeFile(outputFile, compressedBuffer);
+            const totalBytes = compressedBuffer.length;
+            core.debug(`[lz4-native] Archive created: ${(0, utils_1.formatBytes)(totalBytes)} (${totalFiles} files)`);
+        }
+        catch (error) {
+            // Clean up partial archive on error
+            if (fs.existsSync(outputFile)) {
+                fs.unlinkSync(outputFile);
+            }
+            throw error;
+        }
+    }
+    async addToTar(pack, absolutePath, relativePath) {
+        try {
+            const stats = await fs.promises.lstat(absolutePath);
+            if (stats.isSymbolicLink()) {
+                // Add symbolic link
+                const linkTarget = await fs.promises.readlink(absolutePath);
+                pack.entry({
+                    name: relativePath,
+                    type: 'symlink',
+                    linkname: linkTarget,
+                    mode: stats.mode,
+                    mtime: stats.mtime,
+                }, (err) => {
+                    if (err)
+                        core.warning(`[lz4-native] Failed to add symlink ${relativePath}: ${err.message}`);
+                });
+            }
+            else if (stats.isDirectory()) {
+                // Add directory
+                pack.entry({
+                    name: relativePath + '/',
+                    type: 'directory',
+                    mode: stats.mode,
+                    mtime: stats.mtime,
+                }, (err) => {
+                    if (err)
+                        core.warning(`[lz4-native] Failed to add directory ${relativePath}: ${err.message}`);
+                });
+                // Recursively add directory contents
+                const entries = await fs.promises.readdir(absolutePath);
+                for (const entry of entries) {
+                    const entryAbsolute = path.join(absolutePath, entry);
+                    const entryRelative = path.join(relativePath, entry);
+                    await this.addToTar(pack, entryAbsolute, entryRelative);
+                }
+            }
+            else if (stats.isFile()) {
+                // Add file
+                const fileContent = await fs.promises.readFile(absolutePath);
+                await new Promise((resolve, reject) => {
+                    const entry = pack.entry({
+                        name: relativePath,
+                        type: 'file',
+                        size: stats.size,
+                        mode: stats.mode,
+                        mtime: stats.mtime,
+                    }, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                    entry.write(fileContent);
+                    entry.end();
+                });
+            }
+        }
+        catch (error) {
+            // Log warning but continue with other files
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            core.warning(`[lz4-native] Failed to add ${relativePath}: ${errorMsg}`);
+        }
+    }
+    async extract(archivePath, targetDir) {
+        core.debug(`[lz4-native] Extracting archive: ${archivePath}`);
+        core.debug(`[lz4-native] Target directory: ${targetDir}`);
+        // Verify archive exists and get size
+        try {
+            const stats = fs.statSync(archivePath);
+            core.debug(`[lz4-native] Archive size: ${(0, utils_1.formatBytes)(stats.size)}`);
+        }
+        catch (error) {
+            throw new Error(`Archive file not found: ${archivePath}`);
+        }
+        // Ensure target directory exists
+        await fs.promises.mkdir(targetDir, { recursive: true });
+        try {
+            // Read compressed file
+            const compressedBuffer = await fs.promises.readFile(archivePath);
+            // Decompress with LZ4
+            core.debug(`[lz4-native] Decompressing ${(0, utils_1.formatBytes)(compressedBuffer.length)} LZ4 data`);
+            const decompressed = lz4.decompress(new Uint8Array(compressedBuffer));
+            const tarBuffer = Buffer.from(decompressed);
+            core.debug(`[lz4-native] Decompressed to ${(0, utils_1.formatBytes)(tarBuffer.length)} tar data`);
+            // Extract tar
+            const extract = tar.extract();
+            let extractedFiles = 0;
+            // Handle each entry in the tar archive
+            extract.on('entry', async (header, stream, next) => {
+                const entryPath = path.join(targetDir, header.name);
+                core.debug(`[lz4-native] Extracting: ${header.name}`);
+                try {
+                    if (header.type === 'directory') {
+                        // Create directory
+                        await fs.promises.mkdir(entryPath, { recursive: true });
+                        if (header.mode) {
+                            await fs.promises.chmod(entryPath, header.mode);
+                        }
+                        stream.resume();
+                        next();
+                    }
+                    else if (header.type === 'file') {
+                        // Ensure parent directory exists
+                        await fs.promises.mkdir(path.dirname(entryPath), { recursive: true });
+                        // Write file
+                        const output = fs.createWriteStream(entryPath);
+                        stream.pipe(output);
+                        output.on('finish', async () => {
+                            if (header.mode) {
+                                await fs.promises.chmod(entryPath, header.mode);
+                            }
+                            extractedFiles++;
+                            next();
+                        });
+                        output.on('error', (err) => {
+                            core.error(`[lz4-native] Failed to write file ${header.name}: ${err.message}`);
+                            next(err);
+                        });
+                    }
+                    else if (header.type === 'symlink') {
+                        // Create symbolic link
+                        const linkTarget = header.linkname || '';
+                        await fs.promises.mkdir(path.dirname(entryPath), { recursive: true });
+                        // Remove existing file/link if present
+                        if (fs.existsSync(entryPath)) {
+                            await fs.promises.unlink(entryPath);
+                        }
+                        await fs.promises.symlink(linkTarget, entryPath);
+                        stream.resume();
+                        next();
+                    }
+                    else {
+                        // Skip unknown types
+                        core.debug(`[lz4-native] Skipping unsupported entry type: ${header.type}`);
+                        stream.resume();
+                        next();
+                    }
+                }
+                catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    core.error(`[lz4-native] Failed to extract ${header.name}: ${errorMsg}`);
+                    stream.resume();
+                    next();
+                }
+            });
+            // Feed tar data to extractor
+            extract.write(tarBuffer);
+            extract.end();
+            // Wait for extraction to complete
+            await new Promise((resolve, reject) => {
+                extract.on('finish', () => {
+                    core.debug(`[lz4-native] Extraction completed: ${extractedFiles} files`);
+                    resolve();
+                });
+                extract.on('error', reject);
+            });
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to extract LZ4 archive: ${errorMsg}`);
+        }
+    }
+}
+exports.Lz4NativeHandler = Lz4NativeHandler;
 
 
 /***/ }),
@@ -81239,6 +82256,7 @@ var CompressionFormat;
     CompressionFormat["TAR_GZIP"] = "tar+gzip";
     CompressionFormat["ZIP"] = "zip";
     CompressionFormat["GZIP"] = "gzip";
+    CompressionFormat["LZ4"] = "lz4";
 })(CompressionFormat || (exports.CompressionFormat = CompressionFormat = {}));
 
 

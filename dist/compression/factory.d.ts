@@ -7,8 +7,10 @@ export type CompressionBackend = 'auto' | 'native' | 'shell';
 /**
  * Get the best available compression handler based on system capabilities
  * Handlers are selected by priority
- * Native handlers (always available): tar+gzip-native (200) > zip-native (150) > gzip-native (100)
+ * Native handlers (always available): lz4 (250) > tar+gzip-native (200) > zip-native (150) > gzip-native (100)
  * Shell handlers (require tools): tar+gzip (100) > zip (50) > gzip (25)
+ *
+ * Default: LZ4 (fastest compression/decompression)
  *
  * @param backend - Compression backend preference: 'auto' (default), 'native', or 'shell'
  */

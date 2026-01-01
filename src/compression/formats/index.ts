@@ -11,3 +11,4 @@ export {GzipHandler} from './gzip';
 export {TarGzipNativeHandler} from './tar-gzip-native';
 export {ZipNativeHandler} from './zip-native';
 export {GzipNativeHandler} from './gzip-native';
+export {Lz4NativeHandler} from './lz4-native';
