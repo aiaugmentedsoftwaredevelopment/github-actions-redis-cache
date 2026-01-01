@@ -9,6 +9,9 @@ jobs:
   preview:
     name: Pulumi Preview
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,9 +39,10 @@ jobs:
         uses: pulumi/actions@v5
         with:
           command: preview
-          stack-name: dev
+          stack-name: prod
           work-dir: pulumi
           comment-on-pr: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          upsert: true
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
