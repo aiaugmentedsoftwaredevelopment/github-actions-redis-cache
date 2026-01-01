@@ -1,0 +1,56 @@
+name: 'Redis Cache'
+description: 'Cache dependencies using Redis/Valkey for ultra-fast builds'
+author: 'AI Augmented Software Development'
+branding:
+  icon: 'database'
+  color: 'red'
+
+inputs:
+  path:
+    description: |
+      A list of files, directories, and wildcard patterns to cache.
+      Multiple paths can be specified on separate lines.
+    required: true
+  key:
+    description: |
+      An explicit key for restoring and saving the cache.
+      Typically includes hash of dependency files.
+    required: true
+  restore-keys:
+    description: |
+      An ordered list of prefix-matched keys to use for restoring stale cache
+      if no cache hit occurred for the primary key.
+    required: false
+  redis-host:
+    description: 'Redis/Valkey host address'
+    required: false
+    default: 'valkey-cache.github-actions-cache.svc.cluster.local'
+  redis-port:
+    description: 'Redis/Valkey port number'
+    required: false
+    default: '6379'
+  redis-password:
+    description: 'Redis/Valkey password (if authentication enabled)'
+    required: false
+  ttl:
+    description: 'Cache time-to-live in seconds (default: 7 days)'
+    required: false
+    default: '604800'
+  compression:
+    description: 'Compression level for cache (0-9, default: 6)'
+    required: false
+    default: '6'
+
+outputs:
+  cache-hit:
+    description: 'A boolean value to indicate an exact match was found for the primary key'
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-matched-key:
+    description: 'The key of the cache that was restored (may be different from primary key if restore-keys was used)'
+    value: ${{ steps.restore.outputs.cache-matched-key }}
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+  post: 'dist/post.js'
+  post-if: success()
