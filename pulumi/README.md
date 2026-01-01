@@ -15,9 +15,9 @@ This Pulumi project deploys a production-ready Valkey instance to your Kubernete
 - Kubernetes cluster with kubectl access
 - Pulumi CLI installed (`brew install pulumi` or see [pulumi.com](https://www.pulumi.com/docs/get-started/install/))
 - Node.js 20+ and npm
-- Pulumi stack with kubeconfig output (e.g., `egulatee/kubeconfig/prod`)
 - GitHub repository secrets configured:
-  - `PULUMI_ACCESS_TOKEN` - Pulumi Cloud access token (used to fetch kubeconfig from stack)
+  - `KUBECONFIG` - Base64-encoded kubeconfig file for your Kubernetes cluster
+  - `PULUMI_ACCESS_TOKEN` - Pulumi Cloud access token for state management
 
 ## Quick Start
 

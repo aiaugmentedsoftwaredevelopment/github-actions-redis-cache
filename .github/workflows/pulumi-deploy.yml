@@ -27,13 +27,11 @@ jobs:
         working-directory: pulumi
         run: npm ci
 
-      - name: Configure kubectl from kubeconfig stack
+      - name: Configure kubectl
         run: |
           mkdir -p $HOME/.kube
-          pulumi stack output kubeconfig --stack egulatee/kubeconfig/prod --show-secrets > $HOME/.kube/config
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: Deploy with Pulumi
         uses: pulumi/actions@v5
