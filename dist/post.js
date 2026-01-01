@@ -37572,6 +37572,8 @@ const utils_1 = __nccwpck_require__(1798);
 async function run() {
     try {
         core.info('💾 Redis Cache Action - Save Phase');
+        core.debug(`Running on: ${process.platform} ${process.arch}`);
+        core.debug(`Node version: ${process.version}`);
         // Get saved state from restore phase
         const key = core.getState('cache-key');
         const pathsInput = core.getState('cache-paths');
@@ -37586,33 +37588,60 @@ async function run() {
             return;
         }
         core.info(`🔑 Saving cache with key: ${key}`);
+        core.debug('Configuration:');
+        core.debug(`  Redis Host: ${redisHost}`);
+        core.debug(`  Redis Port: ${redisPort}`);
+        core.debug(`  Redis Auth: ${redisPassword ? 'Enabled' : 'Disabled'}`);
+        core.debug(`  TTL: ${ttl}s (${Math.round(ttl / 86400)} days)`);
+        core.debug(`  Compression: Level ${compression}`);
         // Parse paths
         const pathPatterns = pathsInput
             .split('\n')
             .map(p => p.trim())
             .filter(p => p.length > 0);
         core.info(`📂 Resolving cache paths (${pathPatterns.length} patterns)...`);
+        core.debug('Patterns to resolve:');
+        pathPatterns.forEach(p => core.debug(`   - ${p}`));
         // Resolve glob patterns to actual files
+        const globStart = Date.now();
         const resolvedPaths = await (0, utils_1.resolveGlobPaths)(pathPatterns);
+        const globTime = Date.now() - globStart;
+        core.debug(`  Glob resolution time: ${globTime}ms`);
+        core.debug(`  Paths found: ${resolvedPaths.length}`);
         if (resolvedPaths.length === 0) {
             core.warning('⚠️  No files found matching cache patterns - skipping cache save');
             core.info('Patterns searched:');
             pathPatterns.forEach(p => core.info(`   - ${p}`));
+            core.error('');
+            core.error('Troubleshooting:');
+            core.error('  - Verify glob patterns are correct');
+            core.error('  - Check if files exist before cache save runs');
+            core.error('  - Ensure paths are relative or absolute as expected');
             return;
         }
         // Validate paths exist
+        const validateStart = Date.now();
         const validPaths = await (0, utils_1.validatePaths)(resolvedPaths);
+        const validateTime = Date.now() - validateStart;
+        core.debug(`  Path validation time: ${validateTime}ms`);
+        core.debug(`  Valid paths: ${validPaths.length}`);
         if (validPaths.length === 0) {
             core.warning('⚠️  All resolved paths are invalid - skipping cache save');
+            core.error('');
+            core.error('Troubleshooting:');
+            core.error('  - Files may have been deleted during job execution');
+            core.error('  - Check file permissions');
             return;
         }
         core.info(`   Found ${validPaths.length} files/directories to cache`);
-        core.debug('Cache contents:');
+        core.debug('Cache contents (first 10):');
         validPaths.slice(0, 10).forEach(p => core.debug(`   - ${p}`));
         if (validPaths.length > 10) {
             core.debug(`   ... and ${validPaths.length - 10} more`);
         }
         // Create Redis client
+        core.info(`🔌 Connecting to Redis...`);
+        core.debug(`  Target: ${redisHost}:${redisPort}`);
         const config = {
             redisHost,
             redisPort,
@@ -37621,16 +37650,54 @@ async function run() {
             compression,
         };
         const redis = await (0, utils_1.createRedisClient)(config);
+        core.debug(`  Status: Connected and ready`);
         try {
             // Create tarball
             const tempDir = process.env.RUNNER_TEMP || '/tmp';
             const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
             core.info(`🗜️  Creating compressed archive (level ${compression})...`);
+            core.debug(`  Temp file: ${tempFile}`);
+            core.debug(`  Files to archive: ${validPaths.length}`);
             try {
-                await (0, utils_1.createTarball)(validPaths, tempFile, compression);
+                const tarStart = Date.now();
+                try {
+                    await (0, utils_1.createTarball)(validPaths, tempFile, compression);
+                    const tarTime = Date.now() - tarStart;
+                    core.debug(`  Tar creation time: ${tarTime}ms`);
+                }
+                catch (tarError) {
+                    const errorMsg = tarError instanceof Error ? tarError.message : String(tarError);
+                    core.error(`Failed to create tarball: ${errorMsg}`);
+                    core.error('');
+                    core.error('Troubleshooting:');
+                    if (errorMsg.includes('command not found') || errorMsg.includes('ENOENT')) {
+                        core.error('  - tar command is not available on this system');
+                        core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
+                        core.error('  - Verify tar is in PATH: which tar');
+                    }
+                    else if (errorMsg.includes('Permission denied')) {
+                        core.error('  - Check file permissions for source paths');
+                        core.error('  - Verify write permissions for temp directory');
+                        core.error(`  - Temp directory: ${tempDir}`);
+                    }
+                    else if (errorMsg.includes('No space left')) {
+                        core.error('  - Disk space exhausted');
+                        core.error('  - Check available disk space: df -h');
+                        core.error('  - Consider reducing cache size or cleaning temp directory');
+                    }
+                    else {
+                        core.error('  - Verify all files in cache paths are accessible');
+                        core.error('  - Check for symbolic links or special files');
+                        core.error('  - Ensure sufficient disk space');
+                    }
+                    throw tarError;
+                }
                 // Read tarball
+                const readStart = Date.now();
                 const cacheData = fs.readFileSync(tempFile);
                 const sizeBytes = cacheData.length;
+                const readTime = Date.now() - readStart;
+                core.debug(`  Tar read time: ${readTime}ms`);
                 core.info(`   Archive size: ${(0, utils_1.formatBytes)(sizeBytes)}`);
                 // Check if cache size is reasonable (warn if > 1GB)
                 if (sizeBytes > 1024 * 1024 * 1024) {
@@ -37639,9 +37706,13 @@ async function run() {
                 // Save to Redis with TTL
                 const fullKey = (0, utils_1.getCacheKey)(key);
                 core.info(`💾 Uploading to Redis...`);
+                core.debug(`  Full Redis key: ${fullKey}`);
+                core.debug(`  Data size: ${(0, utils_1.formatBytes)(sizeBytes)}`);
+                core.debug(`  TTL: ${ttl} seconds`);
                 const startTime = Date.now();
                 await redis.setex(fullKey, ttl, cacheData);
                 const uploadTime = Date.now() - startTime;
+                core.debug(`  Redis upload time: ${uploadTime}ms`);
                 core.info(`✅ Cache saved successfully!`);
                 core.info(`📊 Cache Statistics:`);
                 core.info(`   Key: ${key}`);
@@ -37652,11 +37723,16 @@ async function run() {
                 core.info(`   Upload time: ${uploadTime}ms`);
                 core.info(`   Upload speed: ${(0, utils_1.formatBytes)(Math.round((sizeBytes / uploadTime) * 1000))}/s`);
                 // Verify cache was saved
+                core.info(`🔍 Verifying cache upload...`);
+                core.debug(`  Checking existence of key: ${fullKey}`);
+                const verifyStart = Date.now();
                 const exists = await redis.exists(fullKey);
+                const verifyTime = Date.now() - verifyStart;
+                core.debug(`  Verification time: ${verifyTime}ms`);
                 if (!exists) {
                     throw new Error('Cache verification failed - key does not exist after save');
                 }
-                core.debug('Cache verification passed');
+                core.debug(`  ✅ Cache verification passed`);
             }
             finally {
                 // Clean up temp file
@@ -37673,14 +37749,61 @@ async function run() {
     }
     catch (error) {
         // Don't fail the job if cache save fails
-        if (error instanceof Error) {
-            core.warning(`⚠️  Failed to save cache: ${error.message}`);
-            core.debug(error.stack || 'No stack trace available');
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        core.warning(`⚠️  Failed to save cache: ${errorMsg}`);
+        if (error instanceof Error && error.stack) {
+            core.debug('Stack trace:');
+            core.debug(error.stack);
         }
-        else {
-            core.warning(`⚠️  Failed to save cache: ${String(error)}`);
+        // Provide troubleshooting guidance based on error type
+        if (errorMsg.includes('ECONNREFUSED')) {
+            core.error('');
+            core.error('Connection refused - Redis server is not reachable:');
+            core.error('  - Verify redis-host and redis-port are correct');
+            core.error('  - Check if Redis server is running');
+            core.error('  - Verify network connectivity');
+            core.error('  - Check firewall rules if using remote Redis');
         }
+        else if (errorMsg.includes('ENOTFOUND')) {
+            core.error('');
+            core.error('DNS resolution failed - cannot find Redis host:');
+            core.error('  - Verify redis-host is correct');
+            core.error('  - Check DNS configuration');
+            core.error('  - Try using IP address instead of hostname');
+        }
+        else if (errorMsg.includes('authentication') || errorMsg.includes('NOAUTH')) {
+            core.error('');
+            core.error('Authentication failed:');
+            core.error('  - Verify redis-password is correct');
+            core.error('  - Check if Redis requires authentication');
+            core.error('  - Verify password is set in repository secrets');
+        }
+        else if (errorMsg.includes('ETIMEDOUT')) {
+            core.error('');
+            core.error('Connection timeout:');
+            core.error('  - Redis server may be overloaded');
+            core.error('  - Network latency may be too high');
+            core.error('  - Check Redis server health');
+        }
+        else if (errorMsg.includes('OOM') || errorMsg.includes('out of memory')) {
+            core.error('');
+            core.error('Redis out of memory:');
+            core.error('  - Redis has reached maxmemory limit');
+            core.error('  - Cache data exceeds available Redis memory');
+            core.error('  - Consider increasing Redis maxmemory');
+            core.error('  - Check Redis eviction policy (should be allkeys-lru)');
+        }
+        else if (errorMsg.includes('Cache verification failed')) {
+            core.error('');
+            core.error('Cache upload verification failed:');
+            core.error('  - Data was uploaded but Redis key does not exist');
+            core.error('  - Redis may have evicted the key immediately');
+            core.error('  - Check Redis memory pressure and eviction policy');
+            core.error('  - Verify TTL settings are reasonable');
+        }
+        core.info('');
         core.info('ℹ️  Job will continue despite cache save failure');
+        core.info('For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting');
     }
 }
 run();
@@ -37745,73 +37868,133 @@ const ioredis_1 = __nccwpck_require__(7796);
  * Create Redis client with configuration
  */
 async function createRedisClient(config) {
+    core.debug(`Creating Redis client for ${config.redisHost}:${config.redisPort}`);
+    core.debug(`  Authentication: ${config.redisPassword ? 'Enabled' : 'Disabled'}`);
+    core.debug(`  Retry strategy: Max 3 attempts with exponential backoff`);
     const redis = new ioredis_1.Redis({
         host: config.redisHost,
         port: config.redisPort,
         password: config.redisPassword,
         retryStrategy: (times) => {
+            core.debug(`  Redis connection retry attempt ${times}/3`);
             if (times > 3) {
                 core.warning('Failed to connect to Redis after 3 attempts');
                 return null;
             }
-            return Math.min(times * 200, 2000);
+            const delay = Math.min(times * 200, 2000);
+            core.debug(`  Waiting ${delay}ms before retry`);
+            return delay;
         },
         maxRetriesPerRequest: 3,
         enableOfflineQueue: false,
         lazyConnect: true,
     });
     try {
+        core.debug('Attempting to connect to Redis...');
         await redis.connect();
-        await redis.ping();
+        core.debug('Testing Redis connection with PING...');
+        const pong = await redis.ping();
+        core.debug(`  Redis PING response: ${pong}`);
         core.info(`✅ Connected to Redis at ${config.redisHost}:${config.redisPort}`);
         return redis;
     }
     catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        core.error(`Failed to connect to Redis: ${errorMsg}`);
+        if (error instanceof Error && error.stack) {
+            core.debug('Connection error stack trace:');
+            core.debug(error.stack);
+        }
         await redis.quit();
-        throw new Error(`Failed to connect to Redis: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to connect to Redis: ${errorMsg}`);
     }
 }
 /**
  * Scan Redis keys matching a pattern
  */
 async function scanKeys(redis, pattern) {
+    core.debug(`Scanning Redis keys with pattern: ${pattern}`);
     const keys = [];
     let cursor = '0';
-    do {
-        const [nextCursor, matchingKeys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-        cursor = nextCursor;
-        keys.push(...matchingKeys);
-    } while (cursor !== '0');
-    return keys;
+    let iterations = 0;
+    try {
+        do {
+            iterations++;
+            core.debug(`  SCAN iteration ${iterations}, cursor: ${cursor}`);
+            const [nextCursor, matchingKeys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            cursor = nextCursor;
+            const matches = matchingKeys;
+            if (matches.length > 0) {
+                core.debug(`    Found ${matches.length} keys in this iteration`);
+                keys.push(...matches);
+            }
+        } while (cursor !== '0');
+        core.debug(`  SCAN completed: ${keys.length} total keys found in ${iterations} iterations`);
+        return keys;
+    }
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        core.error(`Redis SCAN failed: ${errorMsg}`);
+        core.error('  - Redis connection may have been lost during scan');
+        core.error('  - Check Redis server stability');
+        throw new Error(`Failed to scan Redis keys: ${errorMsg}`);
+    }
 }
 /**
  * Resolve glob patterns to actual file paths
  */
 async function resolveGlobPaths(patterns) {
+    core.debug(`Resolving ${patterns.length} glob patterns`);
     const resolvedPaths = [];
     for (const pattern of patterns) {
         try {
+            core.debug(`  Processing pattern: ${pattern}`);
             const globber = await glob.create(pattern.trim(), {
                 followSymbolicLinks: false,
             });
             const files = await globber.glob();
-            resolvedPaths.push(...files);
+            if (files.length > 0) {
+                core.debug(`    Matched ${files.length} files`);
+                resolvedPaths.push(...files);
+            }
+            else {
+                core.debug(`    No files matched this pattern`);
+            }
         }
         catch (error) {
-            core.warning(`Failed to resolve pattern "${pattern}": ${error instanceof Error ? error.message : String(error)}`);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            core.warning(`Failed to resolve pattern "${pattern}": ${errorMsg}`);
+            if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
+                core.warning('  - Check file/directory permissions');
+                core.warning('  - Pattern may reference inaccessible location');
+            }
+            else if (errorMsg.includes('ENOENT')) {
+                core.warning('  - Path does not exist');
+                core.warning('  - Verify the pattern is correct');
+            }
         }
     }
-    return [...new Set(resolvedPaths)]; // Remove duplicates
+    const uniquePaths = [...new Set(resolvedPaths)];
+    core.debug(`  Total unique paths resolved: ${uniquePaths.length}`);
+    return uniquePaths;
 }
 /**
  * Create tarball from paths
+ *
+ * TODO: Future enhancement - Support multiple compression formats (tar, zip, etc.)
+ * and auto-detect available compression tools. See issue for details.
  */
 async function createTarball(paths, outputFile, compression) {
+    core.debug(`Creating tarball with ${paths.length} paths`);
+    core.debug(`  Output file: ${outputFile}`);
+    core.debug(`  Compression level: ${compression}`);
     const workingDir = process.cwd();
     // Create list of files to include (relative paths)
     const fileListPath = path.join(path.dirname(outputFile), 'file-list.txt');
     const relativePaths = paths.map(p => path.relative(workingDir, p));
     fs.writeFileSync(fileListPath, relativePaths.join('\n'));
+    core.debug(`  File list created: ${fileListPath}`);
+    core.debug(`  Working directory: ${workingDir}`);
     try {
         // Use tar command for better performance
         const tarArgs = [
@@ -37822,6 +38005,7 @@ async function createTarball(paths, outputFile, compression) {
             fileListPath,
             '--ignore-failed-read', // Continue if some files don't exist
         ];
+        core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
         let tarOutput = '';
         let tarError = '';
         const exitCode = await exec.exec('tar', tarArgs, {
@@ -37837,14 +38021,35 @@ async function createTarball(paths, outputFile, compression) {
             },
         });
         if (exitCode !== 0) {
-            throw new Error(`tar command failed with exit code ${exitCode}: ${tarError}`);
+            core.error(`tar command failed with exit code ${exitCode}`);
+            if (tarError) {
+                core.error(`tar stderr: ${tarError}`);
+            }
+            if (tarOutput) {
+                core.debug(`tar stdout: ${tarOutput}`);
+            }
+            throw new Error(`tar command failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
         }
         core.debug(`Tarball created successfully: ${outputFile}`);
+    }
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        // Check if tar command is not found
+        if (errorMsg.includes('command not found') ||
+            errorMsg.includes('ENOENT') ||
+            errorMsg.includes('not recognized')) {
+            core.error('tar command is not available on this system');
+            core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
+            core.error('  - Verify tar is in PATH: which tar');
+            throw new Error('tar command not found - please install tar utility');
+        }
+        throw error;
     }
     finally {
         // Clean up file list
         if (fs.existsSync(fileListPath)) {
             fs.unlinkSync(fileListPath);
+            core.debug(`  Cleaned up file list: ${fileListPath}`);
         }
     }
 }
@@ -37852,24 +38057,62 @@ async function createTarball(paths, outputFile, compression) {
  * Extract tarball to filesystem
  */
 async function extractTarball(tarballPath, targetDir = '/') {
+    core.debug(`Extracting tarball: ${tarballPath}`);
+    core.debug(`  Target directory: ${targetDir}`);
     const tarArgs = ['-xzf', tarballPath, '-C', targetDir];
+    core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
     let tarOutput = '';
     let tarError = '';
-    const exitCode = await exec.exec('tar', tarArgs, {
-        silent: true,
-        listeners: {
-            stdout: (data) => {
-                tarOutput += data.toString();
+    try {
+        const exitCode = await exec.exec('tar', tarArgs, {
+            silent: true,
+            listeners: {
+                stdout: (data) => {
+                    tarOutput += data.toString();
+                },
+                stderr: (data) => {
+                    tarError += data.toString();
+                },
             },
-            stderr: (data) => {
-                tarError += data.toString();
-            },
-        },
-    });
-    if (exitCode !== 0) {
-        throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError}`);
+        });
+        if (exitCode !== 0) {
+            core.error(`tar extraction failed with exit code ${exitCode}`);
+            if (tarError) {
+                core.error(`tar stderr: ${tarError}`);
+            }
+            if (tarOutput) {
+                core.debug(`tar stdout: ${tarOutput}`);
+            }
+            throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
+        }
+        core.debug(`Tarball extracted successfully to ${targetDir}`);
     }
-    core.debug(`Tarball extracted successfully to ${targetDir}`);
+    catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        // Check if tar command is not found
+        if (errorMsg.includes('command not found') ||
+            errorMsg.includes('ENOENT') ||
+            errorMsg.includes('not recognized')) {
+            core.error('tar command is not available on this system');
+            core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
+            core.error('  - Verify tar is in PATH: which tar');
+            throw new Error('tar command not found - please install tar utility');
+        }
+        // Check for permission issues
+        if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
+            core.error('Permission denied during extraction');
+            core.error('  - Check write permissions for target directory');
+            core.error(`  - Target directory: ${targetDir}`);
+            core.error('  - Verify the runner has appropriate permissions');
+        }
+        // Check for disk space issues
+        if (errorMsg.includes('No space left')) {
+            core.error('Disk space exhausted during extraction');
+            core.error('  - Check available disk space: df -h');
+            core.error('  - Consider reducing cache size');
+        }
+        throw error;
+    }
 }
 /**
  * Get file size in human-readable format

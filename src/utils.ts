@@ -20,16 +20,23 @@ export interface CacheConfig {
 export async function createRedisClient(
   config: CacheConfig
 ): Promise<Redis> {
+  core.debug(`Creating Redis client for ${config.redisHost}:${config.redisPort}`);
+  core.debug(`  Authentication: ${config.redisPassword ? 'Enabled' : 'Disabled'}`);
+  core.debug(`  Retry strategy: Max 3 attempts with exponential backoff`);
+
   const redis = new Redis({
     host: config.redisHost,
     port: config.redisPort,
     password: config.redisPassword,
     retryStrategy: (times: number) => {
+      core.debug(`  Redis connection retry attempt ${times}/3`);
       if (times > 3) {
         core.warning('Failed to connect to Redis after 3 attempts');
         return null;
       }
-      return Math.min(times * 200, 2000);
+      const delay = Math.min(times * 200, 2000);
+      core.debug(`  Waiting ${delay}ms before retry`);
+      return delay;
     },
     maxRetriesPerRequest: 3,
     enableOfflineQueue: false,
@@ -37,15 +44,26 @@ export async function createRedisClient(
   });
 
   try {
+    core.debug('Attempting to connect to Redis...');
     await redis.connect();
-    await redis.ping();
+
+    core.debug('Testing Redis connection with PING...');
+    const pong = await redis.ping();
+    core.debug(`  Redis PING response: ${pong}`);
+
     core.info(`✅ Connected to Redis at ${config.redisHost}:${config.redisPort}`);
     return redis;
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    core.error(`Failed to connect to Redis: ${errorMsg}`);
+
+    if (error instanceof Error && error.stack) {
+      core.debug('Connection error stack trace:');
+      core.debug(error.stack);
+    }
+
     await redis.quit();
-    throw new Error(
-      `Failed to connect to Redis: ${error instanceof Error ? error.message : String(error)}`
-    );
+    throw new Error(`Failed to connect to Redis: ${errorMsg}`);
   }
 }
 
@@ -56,61 +74,111 @@ export async function scanKeys(
   redis: Redis,
   pattern: string
 ): Promise<string[]> {
+  core.debug(`Scanning Redis keys with pattern: ${pattern}`);
+
   const keys: string[] = [];
   let cursor = '0';
+  let iterations = 0;
 
-  do {
-    const [nextCursor, matchingKeys] = await redis.scan(
-      cursor,
-      'MATCH',
-      pattern,
-      'COUNT',
-      100
-    );
-    cursor = nextCursor;
-    keys.push(...(matchingKeys as string[]));
-  } while (cursor !== '0');
+  try {
+    do {
+      iterations++;
+      core.debug(`  SCAN iteration ${iterations}, cursor: ${cursor}`);
 
-  return keys;
+      const [nextCursor, matchingKeys] = await redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100
+      );
+      cursor = nextCursor;
+      const matches = matchingKeys as string[];
+
+      if (matches.length > 0) {
+        core.debug(`    Found ${matches.length} keys in this iteration`);
+        keys.push(...matches);
+      }
+    } while (cursor !== '0');
+
+    core.debug(`  SCAN completed: ${keys.length} total keys found in ${iterations} iterations`);
+    return keys;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    core.error(`Redis SCAN failed: ${errorMsg}`);
+    core.error('  - Redis connection may have been lost during scan');
+    core.error('  - Check Redis server stability');
+    throw new Error(`Failed to scan Redis keys: ${errorMsg}`);
+  }
 }
 
 /**
  * Resolve glob patterns to actual file paths
  */
 export async function resolveGlobPaths(patterns: string[]): Promise<string[]> {
+  core.debug(`Resolving ${patterns.length} glob patterns`);
+
   const resolvedPaths: string[] = [];
 
   for (const pattern of patterns) {
     try {
+      core.debug(`  Processing pattern: ${pattern}`);
+
       const globber = await glob.create(pattern.trim(), {
         followSymbolicLinks: false,
       });
       const files = await globber.glob();
-      resolvedPaths.push(...files);
+
+      if (files.length > 0) {
+        core.debug(`    Matched ${files.length} files`);
+        resolvedPaths.push(...files);
+      } else {
+        core.debug(`    No files matched this pattern`);
+      }
     } catch (error) {
-      core.warning(
-        `Failed to resolve pattern "${pattern}": ${error instanceof Error ? error.message : String(error)}`
-      );
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      core.warning(`Failed to resolve pattern "${pattern}": ${errorMsg}`);
+
+      if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
+        core.warning('  - Check file/directory permissions');
+        core.warning('  - Pattern may reference inaccessible location');
+      } else if (errorMsg.includes('ENOENT')) {
+        core.warning('  - Path does not exist');
+        core.warning('  - Verify the pattern is correct');
+      }
     }
   }
 
-  return [...new Set(resolvedPaths)]; // Remove duplicates
+  const uniquePaths = [...new Set(resolvedPaths)];
+  core.debug(`  Total unique paths resolved: ${uniquePaths.length}`);
+
+  return uniquePaths;
 }
 
 /**
  * Create tarball from paths
+ *
+ * TODO: Future enhancement - Support multiple compression formats (tar, zip, etc.)
+ * and auto-detect available compression tools. See issue for details.
  */
 export async function createTarball(
   paths: string[],
   outputFile: string,
   compression: number
 ): Promise<void> {
+  core.debug(`Creating tarball with ${paths.length} paths`);
+  core.debug(`  Output file: ${outputFile}`);
+  core.debug(`  Compression level: ${compression}`);
+
   const workingDir = process.cwd();
 
   // Create list of files to include (relative paths)
   const fileListPath = path.join(path.dirname(outputFile), 'file-list.txt');
   const relativePaths = paths.map(p => path.relative(workingDir, p));
   fs.writeFileSync(fileListPath, relativePaths.join('\n'));
+
+  core.debug(`  File list created: ${fileListPath}`);
+  core.debug(`  Working directory: ${workingDir}`);
 
   try {
     // Use tar command for better performance
@@ -122,6 +190,8 @@ export async function createTarball(
       fileListPath,
       '--ignore-failed-read', // Continue if some files don't exist
     ];
+
+    core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
 
     let tarOutput = '';
     let tarError = '';
@@ -140,14 +210,36 @@ export async function createTarball(
     });
 
     if (exitCode !== 0) {
-      throw new Error(`tar command failed with exit code ${exitCode}: ${tarError}`);
+      core.error(`tar command failed with exit code ${exitCode}`);
+      if (tarError) {
+        core.error(`tar stderr: ${tarError}`);
+      }
+      if (tarOutput) {
+        core.debug(`tar stdout: ${tarOutput}`);
+      }
+      throw new Error(`tar command failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
     }
 
     core.debug(`Tarball created successfully: ${outputFile}`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+
+    // Check if tar command is not found
+    if (errorMsg.includes('command not found') ||
+        errorMsg.includes('ENOENT') ||
+        errorMsg.includes('not recognized')) {
+      core.error('tar command is not available on this system');
+      core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
+      core.error('  - Verify tar is in PATH: which tar');
+      throw new Error('tar command not found - please install tar utility');
+    }
+
+    throw error;
   } finally {
     // Clean up file list
     if (fs.existsSync(fileListPath)) {
       fs.unlinkSync(fileListPath);
+      core.debug(`  Cleaned up file list: ${fileListPath}`);
     }
   }
 }
@@ -159,28 +251,71 @@ export async function extractTarball(
   tarballPath: string,
   targetDir: string = '/'
 ): Promise<void> {
+  core.debug(`Extracting tarball: ${tarballPath}`);
+  core.debug(`  Target directory: ${targetDir}`);
+
   const tarArgs = ['-xzf', tarballPath, '-C', targetDir];
+
+  core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
 
   let tarOutput = '';
   let tarError = '';
 
-  const exitCode = await exec.exec('tar', tarArgs, {
-    silent: true,
-    listeners: {
-      stdout: (data: Buffer) => {
-        tarOutput += data.toString();
+  try {
+    const exitCode = await exec.exec('tar', tarArgs, {
+      silent: true,
+      listeners: {
+        stdout: (data: Buffer) => {
+          tarOutput += data.toString();
+        },
+        stderr: (data: Buffer) => {
+          tarError += data.toString();
+        },
       },
-      stderr: (data: Buffer) => {
-        tarError += data.toString();
-      },
-    },
-  });
+    });
 
-  if (exitCode !== 0) {
-    throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError}`);
+    if (exitCode !== 0) {
+      core.error(`tar extraction failed with exit code ${exitCode}`);
+      if (tarError) {
+        core.error(`tar stderr: ${tarError}`);
+      }
+      if (tarOutput) {
+        core.debug(`tar stdout: ${tarOutput}`);
+      }
+      throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
+    }
+
+    core.debug(`Tarball extracted successfully to ${targetDir}`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+
+    // Check if tar command is not found
+    if (errorMsg.includes('command not found') ||
+        errorMsg.includes('ENOENT') ||
+        errorMsg.includes('not recognized')) {
+      core.error('tar command is not available on this system');
+      core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
+      core.error('  - Verify tar is in PATH: which tar');
+      throw new Error('tar command not found - please install tar utility');
+    }
+
+    // Check for permission issues
+    if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
+      core.error('Permission denied during extraction');
+      core.error('  - Check write permissions for target directory');
+      core.error(`  - Target directory: ${targetDir}`);
+      core.error('  - Verify the runner has appropriate permissions');
+    }
+
+    // Check for disk space issues
+    if (errorMsg.includes('No space left')) {
+      core.error('Disk space exhausted during extraction');
+      core.error('  - Check available disk space: df -h');
+      core.error('  - Consider reducing cache size');
+    }
+
+    throw error;
   }
-
-  core.debug(`Tarball extracted successfully to ${targetDir}`);
 }
 
 /**
