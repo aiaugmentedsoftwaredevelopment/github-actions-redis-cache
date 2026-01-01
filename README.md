@@ -2,6 +2,8 @@
 
 A GitHub Action for ultra-fast dependency caching using Redis/Valkey. Built for high-performance CI/CD pipelines.
 
+**Quick Links:** [Quick Start](#quick-start) • [Debugging & Logging](#debugging--logging) • [Troubleshooting](#troubleshooting) • [Deployment Guide](#deployment-guide)
+
 ## Features
 
 - **🚀 Blazing Fast**: In-memory caching with Redis/Valkey (10-100x faster than disk-based solutions)
@@ -41,6 +43,18 @@ You need a Redis or Valkey instance accessible from your GitHub Actions runners.
     restore-keys: |
       ${{ runner.os }}-pub-
 ```
+
+> [!TIP]
+> **🔍 Need to troubleshoot?** Enable verbose debug logging to see detailed timing metrics, Redis connection status, and helpful error messages:
+> ```yaml
+> - name: Cache Dependencies
+>   uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+>   env:
+>     ACTIONS_STEP_DEBUG: true  # Enable debug logging
+>   with:
+>     # ... your cache configuration
+> ```
+> See [Debugging & Logging](#debugging--logging) for full details on what gets logged and troubleshooting guidance.
 
 ### Complete Example (Flutter)
 
