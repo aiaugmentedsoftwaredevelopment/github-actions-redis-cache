@@ -28,11 +28,13 @@ jobs:
         working-directory: pulumi
         run: npm ci
 
-      - name: Configure kubeconfig
+      - name: Configure kubectl from kubeconfig stack
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_CONTENT }}" | base64 -d > $HOME/.kube/config
+          pulumi stack output kubeconfig --stack egulatee/kubeconfig/prod --show-secrets > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
       - name: Destroy with Pulumi
         uses: pulumi/actions@v5
