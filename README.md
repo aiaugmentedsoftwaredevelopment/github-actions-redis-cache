@@ -358,6 +358,111 @@ Point to your existing Redis instance:
 
 *Benchmarks on typical Flutter monorepo with 100+ packages*
 
+### Compression Format Performance
+
+The action automatically detects and selects the best available compression format. Here's how they compare based on **real-world benchmarks** on a 164MB node_modules directory:
+
+| Format | Compression Time | Decompression Time | Compressed Size | Compression Ratio | Availability |
+|--------|-----------------|-------------------|-----------------|-------------------|--------------|
+| **tar+gzip** (default) | **9.6s** | **6.7s** | **28MB** | **82.9%** | Linux/macOS |
+| **zip** (fallback) | **3.4s** (2.9x faster) | **3.4s** (2x faster) | **34MB** (+21%) | **79.3%** | Cross-platform |
+| **gzip** (minimal) | ~10-12s | ~7-8s | ~28-30MB | ~80-82% | Minimal systems |
+
+*Benchmarks on macOS (Apple Silicon) with 164MB node_modules directory. See [Issue #18](https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache/issues/18) for detailed performance analysis.*
+
+**Key Findings:**
+- ✅ **zip is 2.9x faster** for compression and 2x faster for decompression
+- ✅ **tar+gzip achieves best compression** ratio (82.9% vs 79.3%)
+- ✅ **Compression levels have minimal impact** on node_modules (already compressed files)
+- ⚠️ **Trade-off:** zip is 21% larger but 2.4x faster overall (round-trip: 6.8s vs 16.3s)
+
+#### Format Selection
+
+The action uses automatic format detection with the following priority:
+
+1. **tar+gzip (Priority 100)** - Default choice for Linux/macOS
+   - ✅ Best compression ratio
+   - ✅ Fastest decompression
+   - ✅ Preserves file metadata and permissions
+   - ✅ Native support on all GitHub-hosted runners
+
+2. **zip (Priority 50)** - Fallback for compatibility
+   - ✅ Cross-platform (Windows, Linux, macOS)
+   - ✅ Good compression with reasonable speed
+   - ✅ Single-command operation
+   - ⚠️ Slightly larger file sizes than tar+gzip
+
+3. **gzip (Priority 25)** - Last resort fallback
+   - ✅ Widely available on minimal systems
+   - ⚠️ Two-step process (slower overall)
+   - ⚠️ Only used when tar and zip unavailable
+
+**Detection is cached** for the duration of the workflow to avoid redundant checks.
+
+#### Compression Level Tuning
+
+The `compression` input (0-9) controls the compression level. **Note:** Benchmarks show minimal impact on node_modules (already compressed):
+
+| Level | Compression Time | Compressed Size | Use Case |
+|-------|-----------------|-----------------|----------|
+| **1** (fast) | 9.87s | 28MB | Quick iteration |
+| **6** (default) | 9.61s | 28MB | ✅ **Recommended - best balance** |
+| **9** (best) | 10.53s | 28MB | Maximum compression |
+
+**Key Insight:** For node_modules and similar pre-compressed files, compression level has **minimal impact** on both time and size. **Stick with level 6 (default)** for optimal results.
+
+**Example - Fast compression for quick iteration:**
+```yaml
+- uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  with:
+    compression: 1  # Fast compression
+    ttl: 3600       # Short TTL for development
+```
+
+**Example - Maximum compression for production:**
+```yaml
+- uses: aiaugmentedsoftwaredevelopment/github-actions-redis-cache@v1
+  with:
+    compression: 9  # Best compression
+    ttl: 2592000    # 30 days
+```
+
+#### Real-World Performance Impact
+
+For a typical Node.js project with 164MB `node_modules` (real benchmark data):
+
+**Cache Save (tar+gzip level 6):**
+```
+📂 Resolving paths: ~500ms
+🗜️  Creating archive: 9.6s
+💾 Uploading to Redis: ~2s
+────────────────────────────────────
+Total: ~12.1s
+```
+
+**Cache Restore (tar+gzip):**
+```
+🔍 Redis key lookup: ~100ms
+💾 Downloading from Redis: ~1s
+📦 Extracting archive: 6.7s
+────────────────────────────────────
+Total: ~7.8s
+Round-trip: ~19.9s
+```
+
+**With zip format (faster alternative):**
+```
+Save:    3.4s (compression) + 2s (upload) = 5.4s
+Restore: 1s (download) + 3.4s (extraction) = 4.4s
+Round-trip: ~9.8s (2x faster than tar+gzip)
+Trade-off: +6MB file size (34MB vs 28MB)
+```
+
+**Recommendation:**
+- Use **tar+gzip** (default) for best compression and compatibility
+- Use **zip** for speed-critical workflows (2x faster round-trip time)
+- Compression level has minimal impact on node_modules (use default level 6)
+
 ### Memory Management
 
 Valkey/Redis automatically manages memory using LRU (Least Recently Used) eviction:
