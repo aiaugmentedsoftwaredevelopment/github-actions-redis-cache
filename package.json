@@ -4,7 +4,7 @@
   "description": "GitHub Action for caching dependencies using Redis/Valkey",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && ncc build src/index.ts -o dist && ncc build src/post.ts -o dist/post",
+    "build": "tsc && ncc build src/index.ts -o dist && ncc build src/post.ts -o dist-temp && mv dist-temp/index.js dist/post.js && rm -rf dist-temp",
     "format": "prettier --write '**/*.ts'",
     "format-check": "prettier --check '**/*.ts'",
     "lint": "eslint src/**/*.ts",
