@@ -38052,13 +38052,23 @@ async function createTarball(paths, outputFile, compression) {
 async function extractTarball(tarballPath, targetDir = '/') {
     core.debug(`Extracting tarball: ${tarballPath}`);
     core.debug(`  Target directory: ${targetDir}`);
-    const tarArgs = ['-xzf', tarballPath, '-C', targetDir];
+    // Add verbose flag for better diagnostics
+    const tarArgs = ['-xzvf', tarballPath, '-C', targetDir];
     core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
+    // Verify tarball exists and get size
+    try {
+        const stats = fs.statSync(tarballPath);
+        core.debug(`  Tarball size: ${formatBytes(stats.size)}`);
+    }
+    catch (error) {
+        core.error(`Tarball file not found or inaccessible: ${tarballPath}`);
+        throw new Error(`Tarball file not found: ${tarballPath}`);
+    }
     let tarOutput = '';
     let tarError = '';
     try {
         const exitCode = await exec.exec('tar', tarArgs, {
-            silent: true,
+            silent: false, // Changed to false to capture more output
             listeners: {
                 stdout: (data) => {
                     tarOutput += data.toString();
@@ -38070,13 +38080,21 @@ async function extractTarball(tarballPath, targetDir = '/') {
         });
         if (exitCode !== 0) {
             core.error(`tar extraction failed with exit code ${exitCode}`);
+            core.error(`  Command: tar ${tarArgs.join(' ')}`);
+            core.error(`  Tarball path: ${tarballPath}`);
+            core.error(`  Target directory: ${targetDir}`);
             if (tarError) {
-                core.error(`tar stderr: ${tarError}`);
+                core.error(`  tar stderr (${tarError.length} chars):`);
+                core.error(tarError);
+            }
+            else {
+                core.error(`  tar stderr: (empty - no error message from tar)`);
             }
             if (tarOutput) {
-                core.debug(`tar stdout: ${tarOutput}`);
+                core.debug(`  tar stdout (${tarOutput.length} chars):`);
+                core.debug(tarOutput.substring(0, 1000)); // First 1000 chars
             }
-            throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
+            throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'No error message from tar'}`);
         }
         core.debug(`Tarball extracted successfully to ${targetDir}`);
     }
