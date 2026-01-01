@@ -2541,7 +2541,7 @@ exports.safeTrimTrailingSeparator = safeTrimTrailingSeparator;
 
 /***/ }),
 
-/***/ 6617:
+/***/ 8998:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -2797,7 +2797,7 @@ const pathHelper = __importStar(__nccwpck_require__(4138));
 const assert_1 = __importDefault(__nccwpck_require__(2613));
 const minimatch_1 = __nccwpck_require__(3772);
 const internal_match_kind_1 = __nccwpck_require__(2644);
-const internal_path_1 = __nccwpck_require__(6617);
+const internal_path_1 = __nccwpck_require__(8998);
 const IS_WINDOWS = process.platform === 'win32';
 class Pattern {
     constructor(patternOrNegate, isImplicitPattern = false, segments, homedir) {
@@ -8467,7 +8467,7 @@ exports.DEFAULT_CLUSTER_OPTIONS = {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const util_1 = __nccwpck_require__(8998);
+const util_1 = __nccwpck_require__(6617);
 const utils_1 = __nccwpck_require__(7670);
 const Redis_1 = __nccwpck_require__(5695);
 const debug = (0, utils_1.Debug)("cluster:subscriber");
@@ -8701,7 +8701,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const utils_1 = __nccwpck_require__(7670);
 const ClusterSubscriber_1 = __nccwpck_require__(8093);
 const ConnectionPool_1 = __nccwpck_require__(9107);
-const util_1 = __nccwpck_require__(8998);
+const util_1 = __nccwpck_require__(6617);
 const calculateSlot = __nccwpck_require__(8999);
 const debug = (0, utils_1.Debug)("cluster:subscriberGroup");
 /**
@@ -8935,7 +8935,7 @@ exports["default"] = ClusterSubscriberGroup;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const events_1 = __nccwpck_require__(4434);
 const utils_1 = __nccwpck_require__(7670);
-const util_1 = __nccwpck_require__(8998);
+const util_1 = __nccwpck_require__(6617);
 const Redis_1 = __nccwpck_require__(5695);
 const debug = (0, utils_1.Debug)("cluster:connectionPool");
 class ConnectionPool extends events_1.EventEmitter {
@@ -9172,7 +9172,7 @@ const ClusterOptions_1 = __nccwpck_require__(1885);
 const ClusterSubscriber_1 = __nccwpck_require__(8093);
 const ConnectionPool_1 = __nccwpck_require__(9107);
 const DelayQueue_1 = __nccwpck_require__(3455);
-const util_1 = __nccwpck_require__(8998);
+const util_1 = __nccwpck_require__(6617);
 const Deque = __nccwpck_require__(9036);
 const ClusterSubscriberGroup_1 = __nccwpck_require__(5870);
 const debug = (0, utils_1.Debug)("cluster");
@@ -10021,7 +10021,7 @@ exports["default"] = Cluster;
 
 /***/ }),
 
-/***/ 8998:
+/***/ 6617:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -37526,6 +37526,980 @@ module.exports = {
 
 /***/ }),
 
+/***/ 5962:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Compression tool detection with caching
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.detectTar = detectTar;
+exports.detectZip = detectZip;
+exports.detectGzip = detectGzip;
+exports.detectAllTools = detectAllTools;
+exports.getCachedDetection = getCachedDetection;
+exports.clearDetectionCache = clearDetectionCache;
+const core = __importStar(__nccwpck_require__(7484));
+const exec = __importStar(__nccwpck_require__(5236));
+const types_1 = __nccwpck_require__(2319);
+// Cache detection results in memory and GitHub Actions state
+const detectionCache = new Map();
+const DETECTION_CACHE_KEY = 'compression-detection-cache';
+/**
+ * Check if a command is available on the system
+ */
+async function isCommandAvailable(command) {
+    try {
+        const exitCode = await exec.exec('which', [command], {
+            silent: true,
+            ignoreReturnCode: true,
+        });
+        return exitCode === 0;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Get version of a command (for debugging)
+ */
+async function getCommandVersion(command, versionFlag = '--version') {
+    try {
+        let output = '';
+        await exec.exec(command, [versionFlag], {
+            silent: true,
+            ignoreReturnCode: true,
+            listeners: {
+                stdout: (data) => {
+                    output += data.toString();
+                },
+            },
+        });
+        // Return first line only
+        return output.split('\n')[0].trim();
+    }
+    catch {
+        return undefined;
+    }
+}
+/**
+ * Detect if tar command is available
+ */
+async function detectTar() {
+    core.debug('Detecting tar availability...');
+    const available = await isCommandAvailable('tar');
+    const version = available ? await getCommandVersion('tar') : undefined;
+    const result = {
+        format: types_1.CompressionFormat.TAR_GZIP,
+        available,
+        command: 'tar',
+        version,
+    };
+    core.debug(`  tar: ${available ? 'Available' : 'Not found'}${version ? ` (${version})` : ''}`);
+    return result;
+}
+/**
+ * Detect if zip command is available
+ */
+async function detectZip() {
+    core.debug('Detecting zip availability...');
+    const available = await isCommandAvailable('zip');
+    const version = available ? await getCommandVersion('zip') : undefined;
+    const result = {
+        format: types_1.CompressionFormat.ZIP,
+        available,
+        command: 'zip',
+        version,
+    };
+    core.debug(`  zip: ${available ? 'Available' : 'Not found'}${version ? ` (${version})` : ''}`);
+    return result;
+}
+/**
+ * Detect if gzip command is available
+ */
+async function detectGzip() {
+    core.debug('Detecting gzip availability...');
+    const available = await isCommandAvailable('gzip');
+    const version = available ? await getCommandVersion('gzip') : undefined;
+    const result = {
+        format: types_1.CompressionFormat.GZIP,
+        available,
+        command: 'gzip',
+        version,
+    };
+    core.debug(`  gzip: ${available ? 'Available' : 'Not found'}${version ? ` (${version})` : ''}`);
+    return result;
+}
+/**
+ * Detect all available compression tools
+ * Results are cached for the duration of the action run
+ */
+async function detectAllTools() {
+    core.info('🔍 Detecting available compression tools...');
+    // Try to load from GitHub Actions state first
+    const cachedState = core.getState(DETECTION_CACHE_KEY);
+    if (cachedState) {
+        try {
+            const cached = JSON.parse(cachedState);
+            core.debug('Loaded detection results from cache');
+            cached.forEach(result => {
+                detectionCache.set(result.format, result);
+                core.info(`   ${result.command}: ${result.available ? '✅ Available' : '❌ Not found'}`);
+            });
+            return cached;
+        }
+        catch {
+            core.debug('Failed to parse cached detection results, re-detecting');
+        }
+    }
+    // Perform detection
+    const results = await Promise.all([
+        detectTar(),
+        detectZip(),
+        detectGzip(),
+    ]);
+    // Cache results
+    results.forEach(result => {
+        detectionCache.set(result.format, result);
+        core.info(`   ${result.command}: ${result.available ? '✅ Available' : '❌ Not found'}${result.version ? ` (${result.version})` : ''}`);
+    });
+    // Save to GitHub Actions state
+    core.saveState(DETECTION_CACHE_KEY, JSON.stringify(results));
+    core.debug('Saved detection results to cache');
+    return results;
+}
+/**
+ * Get cached detection result for a specific format
+ */
+function getCachedDetection(format) {
+    return detectionCache.get(format);
+}
+/**
+ * Clear detection cache (useful for testing)
+ */
+function clearDetectionCache() {
+    detectionCache.clear();
+}
+
+
+/***/ }),
+
+/***/ 2264:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Compression format factory with auto-selection
+ * Automatically selects the best available compression format
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getBestCompressionHandler = getBestCompressionHandler;
+exports.getCompressionHandler = getCompressionHandler;
+exports.getAllHandlers = getAllHandlers;
+const core = __importStar(__nccwpck_require__(7484));
+const types_1 = __nccwpck_require__(2319);
+const formats_1 = __nccwpck_require__(1789);
+const detector_1 = __nccwpck_require__(5962);
+// Registry of all available handlers
+const handlerRegistry = [
+    new formats_1.TarGzipHandler(),
+    new formats_1.ZipHandler(),
+    new formats_1.GzipHandler(),
+];
+/**
+ * Get the best available compression handler based on system capabilities
+ * Handlers are selected by priority: tar+gzip (100) > zip (50) > gzip (25)
+ */
+async function getBestCompressionHandler() {
+    core.info('🔧 Selecting compression format...');
+    // Detect all available tools
+    const detectionResults = await (0, detector_1.detectAllTools)();
+    // Find available handlers sorted by priority
+    const availableHandlers = [];
+    for (const handler of handlerRegistry) {
+        const detection = detectionResults.find(d => d.format === handler.format);
+        if (detection && detection.available) {
+            availableHandlers.push({
+                handler,
+                priority: handler.priority,
+            });
+            core.debug(`  ${handler.format}: Available (priority ${handler.priority})`);
+        }
+        else {
+            core.debug(`  ${handler.format}: Not available`);
+        }
+    }
+    if (availableHandlers.length === 0) {
+        core.error('❌ No compression tools available!');
+        core.error('');
+        core.error('Please install at least one of the following:');
+        core.error('  - tar (recommended): apt-get install tar');
+        core.error('  - zip: apt-get install zip');
+        core.error('  - gzip: apt-get install gzip');
+        throw new Error('No compression tools available. Please install tar, zip, or gzip.');
+    }
+    // Sort by priority (descending) and select the best
+    availableHandlers.sort((a, b) => b.priority - a.priority);
+    const selected = availableHandlers[0].handler;
+    core.info(`   Selected format: ${selected.format}`);
+    core.info(`   ${availableHandlers.length} format(s) available on this system`);
+    if (selected.format !== types_1.CompressionFormat.TAR_GZIP) {
+        core.warning(`⚠️  Using fallback format '${selected.format}' (tar+gzip not available)`);
+    }
+    return selected;
+}
+/**
+ * Get a specific compression handler by format
+ * Throws error if format is not available
+ */
+async function getCompressionHandler(format) {
+    const handler = handlerRegistry.find(h => h.format === format);
+    if (!handler) {
+        throw new Error(`Unknown compression format: ${format}`);
+    }
+    const isAvailable = await handler.detect();
+    if (!isAvailable) {
+        throw new Error(`Compression format '${format}' is not available on this system`);
+    }
+    return handler;
+}
+/**
+ * Get all registered compression handlers
+ */
+function getAllHandlers() {
+    return [...handlerRegistry];
+}
+
+
+/***/ }),
+
+/***/ 4101:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Gzip compression format handler
+ * Basic fallback option - limited to single file compression
+ * Note: This is a simplified implementation that creates a tar-less gzip archive
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GzipHandler = void 0;
+const core = __importStar(__nccwpck_require__(7484));
+const exec = __importStar(__nccwpck_require__(5236));
+const fs = __importStar(__nccwpck_require__(9896));
+const path = __importStar(__nccwpck_require__(6928));
+const types_1 = __nccwpck_require__(2319);
+const detector_1 = __nccwpck_require__(5962);
+const utils_1 = __nccwpck_require__(1798);
+class GzipHandler {
+    format = types_1.CompressionFormat.GZIP;
+    priority = 25; // Lowest priority - basic compression
+    async detect() {
+        const result = await (0, detector_1.detectGzip)();
+        return result.available;
+    }
+    async compress(paths, outputFile, compressionLevel) {
+        core.debug(`[gzip] Creating archive with ${paths.length} paths at level ${compressionLevel}`);
+        core.debug(`[gzip] Output: ${outputFile}`);
+        core.warning('[gzip] Note: gzip has limited support for multiple files. Consider installing tar or zip for better performance.');
+        const workingDir = process.cwd();
+        // Create a temporary uncompressed tar archive first
+        const tempTar = outputFile.replace(/\.gz$/, '');
+        try {
+            // Create tar archive (without compression)
+            const fileListPath = path.join(path.dirname(outputFile), 'file-list.txt');
+            const relativePaths = paths.map(p => path.relative(workingDir, p));
+            fs.writeFileSync(fileListPath, relativePaths.join('\n'));
+            core.debug(`[gzip] Creating uncompressed tar: ${tempTar}`);
+            const tarArgs = ['-cf', tempTar, '-T', fileListPath];
+            let tarOutput = '';
+            let tarError = '';
+            const tarExitCode = await exec.exec('tar', tarArgs, {
+                cwd: workingDir,
+                silent: true,
+                listeners: {
+                    stdout: (data) => {
+                        tarOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        tarError += data.toString();
+                    },
+                },
+            });
+            if (tarExitCode !== 0) {
+                throw new Error(`tar failed: ${tarError || 'Unknown error'}`);
+            }
+            // Clean up file list
+            if (fs.existsSync(fileListPath)) {
+                fs.unlinkSync(fileListPath);
+            }
+            // Compress with gzip
+            core.debug(`[gzip] Compressing with gzip level ${compressionLevel}`);
+            const gzipArgs = [`-${compressionLevel}`, tempTar];
+            let gzipOutput = '';
+            let gzipError = '';
+            const gzipExitCode = await exec.exec('gzip', gzipArgs, {
+                silent: true,
+                listeners: {
+                    stdout: (data) => {
+                        gzipOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        gzipError += data.toString();
+                    },
+                },
+            });
+            if (gzipExitCode !== 0) {
+                throw new Error(`gzip command failed: ${gzipError || 'Unknown error'}`);
+            }
+            // gzip automatically appends .gz and removes the original
+            // Rename to expected output file if needed
+            const gzippedFile = `${tempTar}.gz`;
+            if (gzippedFile !== outputFile && fs.existsSync(gzippedFile)) {
+                fs.renameSync(gzippedFile, outputFile);
+            }
+            core.debug(`[gzip] Archive created successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if gzip command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('gzip command not found - please install gzip utility or use a different compression format');
+            }
+            throw error;
+        }
+    }
+    async extract(archivePath, targetDir) {
+        core.debug(`[gzip] Extracting archive: ${archivePath}`);
+        core.debug(`[gzip] Target directory: ${targetDir}`);
+        // Verify archive exists and get size
+        try {
+            const stats = fs.statSync(archivePath);
+            core.debug(`[gzip] Archive size: ${(0, utils_1.formatBytes)(stats.size)}`);
+        }
+        catch (error) {
+            throw new Error(`Archive file not found: ${archivePath}`);
+        }
+        // Decompress to temporary tar file
+        const tempTar = path.join(targetDir, 'temp.tar');
+        try {
+            core.debug(`[gzip] Decompressing to: ${tempTar}`);
+            const gunzipArgs = ['-c', archivePath];
+            let gunzipOutput = '';
+            let gunzipError = '';
+            const gunzipExitCode = await exec.exec('gunzip', gunzipArgs, {
+                silent: true,
+                listeners: {
+                    stdout: (data) => {
+                        gunzipOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        gunzipError += data.toString();
+                    },
+                },
+            });
+            if (gunzipExitCode !== 0) {
+                throw new Error(`gunzip failed: ${gunzipError || 'No error message'}`);
+            }
+            // Write decompressed data to temp tar file
+            fs.writeFileSync(tempTar, gunzipOutput);
+            // Extract tar file
+            core.debug(`[gzip] Extracting tar to: ${targetDir}`);
+            const tarArgs = ['-xf', tempTar, '-C', targetDir];
+            const tarExitCode = await exec.exec('tar', tarArgs, {
+                silent: true,
+            });
+            if (tarExitCode !== 0) {
+                throw new Error('tar extraction failed');
+            }
+            core.debug(`[gzip] Extraction completed successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if gunzip command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('gunzip command not found - please install gzip utility');
+            }
+            throw error;
+        }
+        finally {
+            // Clean up temp tar file
+            if (fs.existsSync(tempTar)) {
+                fs.unlinkSync(tempTar);
+                core.debug(`[gzip] Cleaned up temp file: ${tempTar}`);
+            }
+        }
+    }
+}
+exports.GzipHandler = GzipHandler;
+
+
+/***/ }),
+
+/***/ 1789:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Export all compression format handlers
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GzipHandler = exports.ZipHandler = exports.TarGzipHandler = void 0;
+var tar_gzip_1 = __nccwpck_require__(1787);
+Object.defineProperty(exports, "TarGzipHandler", ({ enumerable: true, get: function () { return tar_gzip_1.TarGzipHandler; } }));
+var zip_1 = __nccwpck_require__(2166);
+Object.defineProperty(exports, "ZipHandler", ({ enumerable: true, get: function () { return zip_1.ZipHandler; } }));
+var gzip_1 = __nccwpck_require__(4101);
+Object.defineProperty(exports, "GzipHandler", ({ enumerable: true, get: function () { return gzip_1.GzipHandler; } }));
+
+
+/***/ }),
+
+/***/ 1787:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Tar+Gzip compression format handler
+ * Default and preferred compression format for best compatibility and compression ratio
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TarGzipHandler = void 0;
+const core = __importStar(__nccwpck_require__(7484));
+const exec = __importStar(__nccwpck_require__(5236));
+const fs = __importStar(__nccwpck_require__(9896));
+const path = __importStar(__nccwpck_require__(6928));
+const types_1 = __nccwpck_require__(2319);
+const detector_1 = __nccwpck_require__(5962);
+const utils_1 = __nccwpck_require__(1798);
+class TarGzipHandler {
+    format = types_1.CompressionFormat.TAR_GZIP;
+    priority = 100; // Highest priority - best compression
+    async detect() {
+        const result = await (0, detector_1.detectTar)();
+        return result.available;
+    }
+    async compress(paths, outputFile, compressionLevel) {
+        core.debug(`[tar+gzip] Creating archive with ${paths.length} paths at level ${compressionLevel}`);
+        core.debug(`[tar+gzip] Output: ${outputFile}`);
+        const workingDir = process.cwd();
+        // Create list of files to include (relative paths)
+        const fileListPath = path.join(path.dirname(outputFile), 'file-list.txt');
+        const relativePaths = paths.map(p => path.relative(workingDir, p));
+        fs.writeFileSync(fileListPath, relativePaths.join('\n'));
+        core.debug(`[tar+gzip] File list created: ${fileListPath}`);
+        core.debug(`[tar+gzip] Working directory: ${workingDir}`);
+        try {
+            // Use tar command for better performance
+            const tarArgs = [
+                '-czf',
+                outputFile,
+                '-T',
+                fileListPath,
+                '--ignore-failed-read', // Continue if some files don't exist
+            ];
+            core.debug(`[tar+gzip] Executing: GZIP=-${compressionLevel} tar ${tarArgs.join(' ')}`);
+            let tarOutput = '';
+            let tarError = '';
+            const exitCode = await exec.exec('tar', tarArgs, {
+                cwd: workingDir,
+                silent: true,
+                env: {
+                    ...process.env,
+                    GZIP: `-${compressionLevel}`, // Set gzip compression level
+                },
+                listeners: {
+                    stdout: (data) => {
+                        tarOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        tarError += data.toString();
+                    },
+                },
+            });
+            if (exitCode !== 0) {
+                core.error(`[tar+gzip] tar command failed with exit code ${exitCode}`);
+                core.error(`[tar+gzip] Command: tar ${tarArgs.join(' ')}`);
+                core.error(`[tar+gzip] Working directory: ${workingDir}`);
+                core.error(`[tar+gzip] File list path: ${fileListPath}`);
+                if (tarError) {
+                    core.error(`[tar+gzip] stderr: ${tarError}`);
+                }
+                if (tarOutput) {
+                    core.error(`[tar+gzip] stdout: ${tarOutput}`);
+                }
+                throw new Error(`tar command failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
+            }
+            core.debug(`[tar+gzip] Archive created successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if tar command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('tar command not found - please install tar utility or use a different compression format');
+            }
+            throw error;
+        }
+        finally {
+            // Clean up file list
+            if (fs.existsSync(fileListPath)) {
+                fs.unlinkSync(fileListPath);
+                core.debug(`[tar+gzip] Cleaned up file list: ${fileListPath}`);
+            }
+        }
+    }
+    async extract(archivePath, targetDir) {
+        core.debug(`[tar+gzip] Extracting archive: ${archivePath}`);
+        core.debug(`[tar+gzip] Target directory: ${targetDir}`);
+        // Verify archive exists and get size
+        try {
+            const stats = fs.statSync(archivePath);
+            core.debug(`[tar+gzip] Archive size: ${(0, utils_1.formatBytes)(stats.size)}`);
+        }
+        catch (error) {
+            throw new Error(`Archive file not found: ${archivePath}`);
+        }
+        // Add verbose flag for better diagnostics
+        const tarArgs = ['-xzvf', archivePath, '-C', targetDir];
+        core.debug(`[tar+gzip] Executing: tar ${tarArgs.join(' ')}`);
+        let tarOutput = '';
+        let tarError = '';
+        try {
+            const exitCode = await exec.exec('tar', tarArgs, {
+                silent: false,
+                listeners: {
+                    stdout: (data) => {
+                        tarOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        tarError += data.toString();
+                    },
+                },
+            });
+            if (exitCode !== 0) {
+                core.error(`[tar+gzip] tar extraction failed with exit code ${exitCode}`);
+                core.error(`[tar+gzip] Command: tar ${tarArgs.join(' ')}`);
+                core.error(`[tar+gzip] Archive path: ${archivePath}`);
+                core.error(`[tar+gzip] Target directory: ${targetDir}`);
+                if (tarError) {
+                    core.error(`[tar+gzip] stderr: ${tarError}`);
+                }
+                if (tarOutput) {
+                    core.debug(`[tar+gzip] stdout: ${tarOutput.substring(0, 1000)}`);
+                }
+                throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'No error message'}`);
+            }
+            core.debug(`[tar+gzip] Extraction completed successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if tar command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('tar command not found - please install tar utility');
+            }
+            // Check for permission issues
+            if (errorMsg.includes('Permission denied') ||
+                errorMsg.includes('EACCES')) {
+                throw new Error(`Permission denied during extraction. Target directory: ${targetDir}`);
+            }
+            // Check for disk space issues
+            if (errorMsg.includes('No space left')) {
+                throw new Error('Disk space exhausted during extraction');
+            }
+            throw error;
+        }
+    }
+}
+exports.TarGzipHandler = TarGzipHandler;
+
+
+/***/ }),
+
+/***/ 2166:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * ZIP compression format handler
+ * Fallback option with good Windows compatibility
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ZipHandler = void 0;
+const core = __importStar(__nccwpck_require__(7484));
+const exec = __importStar(__nccwpck_require__(5236));
+const fs = __importStar(__nccwpck_require__(9896));
+const types_1 = __nccwpck_require__(2319);
+const detector_1 = __nccwpck_require__(5962);
+const utils_1 = __nccwpck_require__(1798);
+class ZipHandler {
+    format = types_1.CompressionFormat.ZIP;
+    priority = 50; // Medium priority - good compatibility
+    async detect() {
+        const result = await (0, detector_1.detectZip)();
+        return result.available;
+    }
+    async compress(paths, outputFile, compressionLevel) {
+        core.debug(`[zip] Creating archive with ${paths.length} paths at level ${compressionLevel}`);
+        core.debug(`[zip] Output: ${outputFile}`);
+        const workingDir = process.cwd();
+        try {
+            // zip compression level: -0 (none) to -9 (best)
+            const zipArgs = [
+                `-${compressionLevel}`, // Compression level
+                '-r', // Recursive
+                '-q', // Quiet mode
+                outputFile,
+                ...paths.map(p => p.replace(workingDir + '/', '')), // Relative paths
+            ];
+            core.debug(`[zip] Executing: zip ${zipArgs.join(' ')}`);
+            let zipOutput = '';
+            let zipError = '';
+            const exitCode = await exec.exec('zip', zipArgs, {
+                cwd: workingDir,
+                silent: true,
+                listeners: {
+                    stdout: (data) => {
+                        zipOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        zipError += data.toString();
+                    },
+                },
+            });
+            if (exitCode !== 0) {
+                core.error(`[zip] zip command failed with exit code ${exitCode}`);
+                core.error(`[zip] Command: zip ${zipArgs.join(' ')}`);
+                if (zipError) {
+                    core.error(`[zip] stderr: ${zipError}`);
+                }
+                if (zipOutput) {
+                    core.error(`[zip] stdout: ${zipOutput}`);
+                }
+                throw new Error(`zip command failed with exit code ${exitCode}: ${zipError || 'Unknown error'}`);
+            }
+            core.debug(`[zip] Archive created successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if zip command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('zip command not found - please install zip utility or use a different compression format');
+            }
+            throw error;
+        }
+    }
+    async extract(archivePath, targetDir) {
+        core.debug(`[zip] Extracting archive: ${archivePath}`);
+        core.debug(`[zip] Target directory: ${targetDir}`);
+        // Verify archive exists and get size
+        try {
+            const stats = fs.statSync(archivePath);
+            core.debug(`[zip] Archive size: ${(0, utils_1.formatBytes)(stats.size)}`);
+        }
+        catch (error) {
+            throw new Error(`Archive file not found: ${archivePath}`);
+        }
+        const unzipArgs = [
+            '-q', // Quiet mode
+            '-o', // Overwrite files without prompting
+            archivePath,
+            '-d',
+            targetDir,
+        ];
+        core.debug(`[zip] Executing: unzip ${unzipArgs.join(' ')}`);
+        let unzipOutput = '';
+        let unzipError = '';
+        try {
+            const exitCode = await exec.exec('unzip', unzipArgs, {
+                silent: true,
+                listeners: {
+                    stdout: (data) => {
+                        unzipOutput += data.toString();
+                    },
+                    stderr: (data) => {
+                        unzipError += data.toString();
+                    },
+                },
+            });
+            if (exitCode !== 0) {
+                core.error(`[zip] unzip failed with exit code ${exitCode}`);
+                core.error(`[zip] Command: unzip ${unzipArgs.join(' ')}`);
+                if (unzipError) {
+                    core.error(`[zip] stderr: ${unzipError}`);
+                }
+                if (unzipOutput) {
+                    core.debug(`[zip] stdout: ${unzipOutput.substring(0, 1000)}`);
+                }
+                throw new Error(`unzip failed with exit code ${exitCode}: ${unzipError || 'No error message'}`);
+            }
+            core.debug(`[zip] Extraction completed successfully`);
+        }
+        catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // Check if unzip command is not found
+            if (errorMsg.includes('command not found') ||
+                errorMsg.includes('ENOENT') ||
+                errorMsg.includes('not recognized')) {
+                throw new Error('unzip command not found - please install unzip utility');
+            }
+            // Check for permission issues
+            if (errorMsg.includes('Permission denied') ||
+                errorMsg.includes('EACCES')) {
+                throw new Error(`Permission denied during extraction. Target directory: ${targetDir}`);
+            }
+            // Check for disk space issues
+            if (errorMsg.includes('No space left')) {
+                throw new Error('Disk space exhausted during extraction');
+            }
+            throw error;
+        }
+    }
+}
+exports.ZipHandler = ZipHandler;
+
+
+/***/ }),
+
+/***/ 9782:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Compression module - Multi-format compression with auto-detection
+ *
+ * This module provides:
+ * - Auto-detection of available compression tools
+ * - Multiple format support (tar+gzip, zip, gzip)
+ * - Automatic selection of best available format
+ * - Format-specific handlers with unified interface
+ * - Detection result caching for performance
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__nccwpck_require__(2319), exports);
+__exportStar(__nccwpck_require__(5962), exports);
+__exportStar(__nccwpck_require__(2264), exports);
+__exportStar(__nccwpck_require__(1789), exports);
+
+
+/***/ }),
+
+/***/ 2319:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Compression module types and interfaces
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CompressionFormat = void 0;
+var CompressionFormat;
+(function (CompressionFormat) {
+    CompressionFormat["TAR_GZIP"] = "tar+gzip";
+    CompressionFormat["ZIP"] = "zip";
+    CompressionFormat["GZIP"] = "gzip";
+})(CompressionFormat || (exports.CompressionFormat = CompressionFormat = {}));
+
+
+/***/ }),
+
 /***/ 9407:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -37568,6 +38542,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(7484));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
+const redis_1 = __nccwpck_require__(7879);
+const compression_1 = __nccwpck_require__(9782);
 const utils_1 = __nccwpck_require__(1798);
 async function run() {
     try {
@@ -37617,11 +38593,11 @@ async function run() {
             ttl,
             compression,
         };
-        const redis = await (0, utils_1.createRedisClient)(config);
+        const redis = await (0, redis_1.createRedisClient)(config);
         core.debug(`  Status: Connected and ready`);
         try {
             // Add repository context to key
-            const fullKey = (0, utils_1.getCacheKey)(key);
+            const fullKey = (0, redis_1.getCacheKey)(key);
             core.info(`🔍 Looking for cache with key: ${key}`);
             core.debug(`Full Redis key: ${fullKey}`);
             let cacheData = null;
@@ -37641,12 +38617,12 @@ async function run() {
                 if (restoreKeys.length > 0) {
                     core.info('   Trying restore keys...');
                     for (const restoreKey of restoreKeys) {
-                        const fullRestoreKey = (0, utils_1.getCacheKey)(restoreKey);
+                        const fullRestoreKey = (0, redis_1.getCacheKey)(restoreKey);
                         const pattern = restoreKey.endsWith('*')
                             ? fullRestoreKey
                             : `${fullRestoreKey}*`;
                         core.info(`   Scanning for pattern: ${restoreKey}`);
-                        const matchingKeys = await (0, utils_1.scanKeys)(redis, pattern);
+                        const matchingKeys = await (0, redis_1.scanKeys)(redis, pattern);
                         if (matchingKeys.length > 0) {
                             // Sort keys to get most recent (assumes timestamp in key)
                             const sortedKeys = matchingKeys.sort().reverse();
@@ -37670,6 +38646,8 @@ async function run() {
                 }
             }
             if (cacheData) {
+                // Get compression handler
+                const compressionHandler = await (0, compression_1.getBestCompressionHandler)();
                 // Extract cache
                 const tempDir = process.env.RUNNER_TEMP || '/tmp';
                 const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
@@ -37684,9 +38662,9 @@ async function run() {
                     fs.writeFileSync(tempFile, cacheData);
                     const writeTime = Date.now() - writeStart;
                     core.debug(`  Write time: ${writeTime}ms`);
-                    // Extract to working directory (not root!)
+                    // Extract to working directory
                     const extractStart = Date.now();
-                    await (0, utils_1.extractTarball)(tempFile, workingDir);
+                    await compressionHandler.extract(tempFile, workingDir);
                     const extractTime = Date.now() - extractStart;
                     core.debug(`  Extract time: ${extractTime}ms`);
                     core.info(`✅ Cache restored successfully!`);
@@ -37698,7 +38676,7 @@ async function run() {
                     const errorMsg = error instanceof Error ? error.message : String(error);
                     core.error(`Failed to extract cache: ${errorMsg}`);
                     core.error('Troubleshooting:');
-                    core.error('  - Check if tar is installed and accessible');
+                    core.error('  - Check if compression tools are installed and accessible');
                     core.error('  - Verify disk space is available');
                     core.error('  - Check file permissions in target directory');
                     throw error;
@@ -37762,7 +38740,8 @@ async function run() {
             core.error('  - Check DNS configuration');
             core.error('  - Try using IP address instead of hostname');
         }
-        else if (errorMsg.includes('authentication') || errorMsg.includes('NOAUTH')) {
+        else if (errorMsg.includes('authentication') ||
+            errorMsg.includes('NOAUTH')) {
             core.error('');
             core.error('Authentication failed:');
             core.error('  - Verify redis-password is correct');
@@ -37785,11 +38764,14 @@ run();
 
 /***/ }),
 
-/***/ 1798:
+/***/ 5120:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+/**
+ * Redis client creation and connection management
+ */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -37825,21 +38807,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createRedisClient = createRedisClient;
-exports.scanKeys = scanKeys;
-exports.resolveGlobPaths = resolveGlobPaths;
-exports.createTarball = createTarball;
-exports.extractTarball = extractTarball;
-exports.formatBytes = formatBytes;
-exports.getCacheKey = getCacheKey;
-exports.validatePaths = validatePaths;
 const core = __importStar(__nccwpck_require__(7484));
-const exec = __importStar(__nccwpck_require__(5236));
-const glob = __importStar(__nccwpck_require__(7206));
-const fs = __importStar(__nccwpck_require__(9896));
-const path = __importStar(__nccwpck_require__(6928));
 const ioredis_1 = __nccwpck_require__(7796);
 /**
- * Create Redis client with configuration
+ * Create Redis client with configuration and retry logic
  */
 async function createRedisClient(config) {
     core.debug(`Creating Redis client for ${config.redisHost}:${config.redisPort}`);
@@ -37883,6 +38854,90 @@ async function createRedisClient(config) {
         throw new Error(`Failed to connect to Redis: ${errorMsg}`);
     }
 }
+
+
+/***/ }),
+
+/***/ 7879:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Redis module - Cache storage and retrieval
+ *
+ * This module provides:
+ * - Redis client creation with retry logic
+ * - Key scanning for pattern matching
+ * - Cache key scoping to prevent collisions
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__nccwpck_require__(8818), exports);
+__exportStar(__nccwpck_require__(5120), exports);
+__exportStar(__nccwpck_require__(4805), exports);
+
+
+/***/ }),
+
+/***/ 4805:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Redis operations for cache key management
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.scanKeys = scanKeys;
+exports.getCacheKey = getCacheKey;
+const core = __importStar(__nccwpck_require__(7484));
 /**
  * Scan Redis keys matching a pattern
  */
@@ -37915,6 +38970,80 @@ async function scanKeys(redis, pattern) {
     }
 }
 /**
+ * Get cache key with repository context to avoid collisions
+ */
+function getCacheKey(baseKey) {
+    const repo = process.env.GITHUB_REPOSITORY || 'unknown';
+    const runId = process.env.GITHUB_RUN_ID || 'local';
+    // Include repo to avoid cross-repository cache collisions
+    return `${repo}:${baseKey}`;
+}
+
+
+/***/ }),
+
+/***/ 8818:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Redis module types and interfaces
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+
+/***/ }),
+
+/***/ 1798:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Utility functions for file and path operations
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.resolveGlobPaths = resolveGlobPaths;
+exports.validatePaths = validatePaths;
+exports.formatBytes = formatBytes;
+const core = __importStar(__nccwpck_require__(7484));
+const glob = __importStar(__nccwpck_require__(7206));
+const fs = __importStar(__nccwpck_require__(9896));
+/**
  * Resolve glob patterns to actual file paths
  */
 async function resolveGlobPaths(patterns) {
@@ -37938,7 +39067,8 @@ async function resolveGlobPaths(patterns) {
         catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             core.warning(`Failed to resolve pattern "${pattern}": ${errorMsg}`);
-            if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
+            if (errorMsg.includes('Permission denied') ||
+                errorMsg.includes('EACCES')) {
                 core.warning('  - Check file/directory permissions');
                 core.warning('  - Pattern may reference inaccessible location');
             }
@@ -37951,203 +39081,6 @@ async function resolveGlobPaths(patterns) {
     const uniquePaths = [...new Set(resolvedPaths)];
     core.debug(`  Total unique paths resolved: ${uniquePaths.length}`);
     return uniquePaths;
-}
-/**
- * Create tarball from paths
- *
- * TODO: Future enhancement - Support multiple compression formats (tar, zip, etc.)
- * and auto-detect available compression tools. See issue for details.
- */
-async function createTarball(paths, outputFile, compression) {
-    core.debug(`Creating tarball with ${paths.length} paths`);
-    core.debug(`  Output file: ${outputFile}`);
-    core.debug(`  Compression level: ${compression}`);
-    const workingDir = process.cwd();
-    // Create list of files to include (relative paths)
-    const fileListPath = path.join(path.dirname(outputFile), 'file-list.txt');
-    const relativePaths = paths.map(p => path.relative(workingDir, p));
-    fs.writeFileSync(fileListPath, relativePaths.join('\n'));
-    core.debug(`  File list created: ${fileListPath}`);
-    core.debug(`  Working directory: ${workingDir}`);
-    try {
-        // Use tar command for better performance
-        // Note: tar doesn't accept compression level as a separate flag like `-6`
-        // We need to use environment variable GZIP to set compression level
-        const tarArgs = [
-            '-czf',
-            outputFile,
-            '-T',
-            fileListPath,
-            '--ignore-failed-read', // Continue if some files don't exist
-        ];
-        core.debug(`  Executing: GZIP=-${compression} tar ${tarArgs.join(' ')}`);
-        core.debug(`  This will compress with gzip level ${compression}`);
-        let tarOutput = '';
-        let tarError = '';
-        const exitCode = await exec.exec('tar', tarArgs, {
-            cwd: workingDir,
-            silent: true,
-            env: {
-                ...process.env,
-                GZIP: `-${compression}`, // Set gzip compression level via environment variable
-            },
-            listeners: {
-                stdout: (data) => {
-                    tarOutput += data.toString();
-                },
-                stderr: (data) => {
-                    tarError += data.toString();
-                },
-            },
-        });
-        if (exitCode !== 0) {
-            core.error(`tar command failed with exit code ${exitCode}`);
-            core.error(`  Command: tar ${tarArgs.join(' ')}`);
-            core.error(`  Working directory: ${workingDir}`);
-            core.error(`  File list path: ${fileListPath}`);
-            if (tarError) {
-                core.error(`  tar stderr: ${tarError}`);
-            }
-            else {
-                core.error(`  tar stderr: (empty)`);
-            }
-            if (tarOutput) {
-                core.error(`  tar stdout: ${tarOutput}`);
-            }
-            // Exit code 64 typically means usage error
-            if (exitCode === 64) {
-                core.error('');
-                core.error('Exit code 64 indicates a command-line usage error.');
-                core.error('Possible causes:');
-                core.error('  - Invalid tar arguments (compression level may not be supported)');
-                core.error('  - File list format issue');
-                core.error('  - Incompatible tar version');
-            }
-            throw new Error(`tar command failed with exit code ${exitCode}: ${tarError || 'Unknown error'}`);
-        }
-        core.debug(`Tarball created successfully: ${outputFile}`);
-    }
-    catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        // Check if tar command is not found
-        if (errorMsg.includes('command not found') ||
-            errorMsg.includes('ENOENT') ||
-            errorMsg.includes('not recognized')) {
-            core.error('tar command is not available on this system');
-            core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
-            core.error('  - Verify tar is in PATH: which tar');
-            throw new Error('tar command not found - please install tar utility');
-        }
-        throw error;
-    }
-    finally {
-        // Clean up file list
-        if (fs.existsSync(fileListPath)) {
-            fs.unlinkSync(fileListPath);
-            core.debug(`  Cleaned up file list: ${fileListPath}`);
-        }
-    }
-}
-/**
- * Extract tarball to filesystem
- * NOTE: targetDir should match the working directory used during tarball creation
- * to properly resolve relative paths
- */
-async function extractTarball(tarballPath, targetDir) {
-    core.debug(`Extracting tarball: ${tarballPath}`);
-    core.debug(`  Target directory: ${targetDir}`);
-    // Add verbose flag for better diagnostics
-    const tarArgs = ['-xzvf', tarballPath, '-C', targetDir];
-    core.debug(`  Executing: tar ${tarArgs.join(' ')}`);
-    // Verify tarball exists and get size
-    try {
-        const stats = fs.statSync(tarballPath);
-        core.debug(`  Tarball size: ${formatBytes(stats.size)}`);
-    }
-    catch (error) {
-        core.error(`Tarball file not found or inaccessible: ${tarballPath}`);
-        throw new Error(`Tarball file not found: ${tarballPath}`);
-    }
-    let tarOutput = '';
-    let tarError = '';
-    try {
-        const exitCode = await exec.exec('tar', tarArgs, {
-            silent: false, // Changed to false to capture more output
-            listeners: {
-                stdout: (data) => {
-                    tarOutput += data.toString();
-                },
-                stderr: (data) => {
-                    tarError += data.toString();
-                },
-            },
-        });
-        if (exitCode !== 0) {
-            core.error(`tar extraction failed with exit code ${exitCode}`);
-            core.error(`  Command: tar ${tarArgs.join(' ')}`);
-            core.error(`  Tarball path: ${tarballPath}`);
-            core.error(`  Target directory: ${targetDir}`);
-            if (tarError) {
-                core.error(`  tar stderr (${tarError.length} chars):`);
-                core.error(tarError);
-            }
-            else {
-                core.error(`  tar stderr: (empty - no error message from tar)`);
-            }
-            if (tarOutput) {
-                core.debug(`  tar stdout (${tarOutput.length} chars):`);
-                core.debug(tarOutput.substring(0, 1000)); // First 1000 chars
-            }
-            throw new Error(`tar extraction failed with exit code ${exitCode}: ${tarError || 'No error message from tar'}`);
-        }
-        core.debug(`Tarball extracted successfully to ${targetDir}`);
-    }
-    catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        // Check if tar command is not found
-        if (errorMsg.includes('command not found') ||
-            errorMsg.includes('ENOENT') ||
-            errorMsg.includes('not recognized')) {
-            core.error('tar command is not available on this system');
-            core.error('  - Install tar: apt-get install tar (Ubuntu) or yum install tar (RHEL)');
-            core.error('  - Verify tar is in PATH: which tar');
-            throw new Error('tar command not found - please install tar utility');
-        }
-        // Check for permission issues
-        if (errorMsg.includes('Permission denied') || errorMsg.includes('EACCES')) {
-            core.error('Permission denied during extraction');
-            core.error('  - Check write permissions for target directory');
-            core.error(`  - Target directory: ${targetDir}`);
-            core.error('  - Verify the runner has appropriate permissions');
-        }
-        // Check for disk space issues
-        if (errorMsg.includes('No space left')) {
-            core.error('Disk space exhausted during extraction');
-            core.error('  - Check available disk space: df -h');
-            core.error('  - Consider reducing cache size');
-        }
-        throw error;
-    }
-}
-/**
- * Get file size in human-readable format
- */
-function formatBytes(bytes) {
-    if (bytes === 0)
-        return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-}
-/**
- * Get cache key with repository context
- */
-function getCacheKey(baseKey) {
-    const repo = process.env.GITHUB_REPOSITORY || 'unknown';
-    const runId = process.env.GITHUB_RUN_ID || 'local';
-    // Include repo to avoid cross-repository cache collisions
-    return `${repo}:${baseKey}`;
 }
 /**
  * Validate cache paths exist
@@ -38166,6 +39099,17 @@ async function validatePaths(paths) {
         }
     }
     return validPaths;
+}
+/**
+ * Format bytes to human-readable string
+ */
+function formatBytes(bytes) {
+    if (bytes === 0)
+        return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
 

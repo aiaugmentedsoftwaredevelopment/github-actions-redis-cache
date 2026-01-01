@@ -1,14 +1,9 @@
 import * as core from '@actions/core';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  createRedisClient,
-  scanKeys,
-  extractTarball,
-  formatBytes,
-  getCacheKey,
-  CacheConfig,
-} from './utils';
+import {createRedisClient, scanKeys, getCacheKey, CacheConfig} from './redis';
+import {getBestCompressionHandler} from './compression';
+import {formatBytes} from './utils';
 
 async function run(): Promise<void> {
   try {
@@ -132,6 +127,9 @@ async function run(): Promise<void> {
       }
 
       if (cacheData) {
+        // Get compression handler
+        const compressionHandler = await getBestCompressionHandler();
+
         // Extract cache
         const tempDir = process.env.RUNNER_TEMP || '/tmp';
         const tempFile = path.join(tempDir, `cache-${Date.now()}.tar.gz`);
@@ -150,9 +148,9 @@ async function run(): Promise<void> {
           const writeTime = Date.now() - writeStart;
           core.debug(`  Write time: ${writeTime}ms`);
 
-          // Extract to working directory (not root!)
+          // Extract to working directory
           const extractStart = Date.now();
-          await extractTarball(tempFile, workingDir);
+          await compressionHandler.extract(tempFile, workingDir);
           const extractTime = Date.now() - extractStart;
           core.debug(`  Extract time: ${extractTime}ms`);
 
@@ -164,7 +162,7 @@ async function run(): Promise<void> {
           const errorMsg = error instanceof Error ? error.message : String(error);
           core.error(`Failed to extract cache: ${errorMsg}`);
           core.error('Troubleshooting:');
-          core.error('  - Check if tar is installed and accessible');
+          core.error('  - Check if compression tools are installed and accessible');
           core.error('  - Verify disk space is available');
           core.error('  - Check file permissions in target directory');
           throw error;
@@ -181,7 +179,9 @@ async function run(): Promise<void> {
         core.setOutput('cache-matched-key', matchedKey);
 
         core.info(`📊 Cache Statistics:`);
-        core.info(`   Cache Hit: ${cacheHit ? 'Yes (exact match)' : 'No (restored from fallback)'}`);
+        core.info(
+          `   Cache Hit: ${cacheHit ? 'Yes (exact match)' : 'No (restored from fallback)'}`
+        );
         core.info(`   Matched Key: ${matchedKey}`);
       } else {
         // No cache found
@@ -228,7 +228,10 @@ async function run(): Promise<void> {
       core.error('  - Verify redis-host is correct');
       core.error('  - Check DNS configuration');
       core.error('  - Try using IP address instead of hostname');
-    } else if (errorMsg.includes('authentication') || errorMsg.includes('NOAUTH')) {
+    } else if (
+      errorMsg.includes('authentication') ||
+      errorMsg.includes('NOAUTH')
+    ) {
       core.error('');
       core.error('Authentication failed:');
       core.error('  - Verify redis-password is correct');
@@ -243,7 +246,9 @@ async function run(): Promise<void> {
     }
 
     core.error('');
-    core.error('For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting');
+    core.error(
+      'For more help, see: https://github.com/aiaugmentedsoftwaredevelopment/github-actions-redis-cache#troubleshooting'
+    );
   }
 }
 
