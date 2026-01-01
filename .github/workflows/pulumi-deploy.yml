@@ -35,19 +35,13 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
-      - name: Initialize Pulumi stack if needed
-        working-directory: pulumi
-        run: |
-          pulumi stack select dev 2>/dev/null || pulumi stack init dev
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
       - name: Deploy with Pulumi
         uses: pulumi/actions@v5
         with:
           command: up
-          stack-name: dev
+          stack-name: prod
           work-dir: pulumi
+          upsert: true
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
