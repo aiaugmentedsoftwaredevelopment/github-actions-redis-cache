@@ -6,6 +6,7 @@ export enum CompressionFormat {
   TAR_GZIP = 'tar+gzip',
   ZIP = 'zip',
   GZIP = 'gzip',
+  LZ4 = 'lz4',
 }
 
 export interface CompressionHandler {
