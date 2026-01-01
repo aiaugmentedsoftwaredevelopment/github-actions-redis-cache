@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "date": "2026-01-01T21:36:07.963Z",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1 Pro",
+    "nodeVersion": "v20.12.2",
+    "formatsTest": "LZ4, Tar+Gzip, ZIP, Gzip (all native Node.js)"
+  },
+  "results": [
+    {
+      "fileSize": "20MB",
+      "format": "Tar+Gzip",
+      "level": 1,
+      "compressTime": 20.96312500000002,
+      "decompressTime": 44.688625,
+      "originalSize": 20971520,
+      "compressedSize": 132278,
+      "ratio": 0.6307506561279297,
+      "compressThroughput": 954.0562296890364,
+      "decompressThroughput": 447.5411807814628
+    },
+    {
+      "fileSize": "20MB",
+      "format": "Tar+Gzip",
+      "level": 6,
+      "compressTime": 46.372416999999984,
+      "decompressTime": 39.83154099999996,
+      "originalSize": 20971520,
+      "compressedSize": 61203,
+      "ratio": 0.2918386459350586,
+      "compressThroughput": 431.29086844880237,
+      "decompressThroughput": 502.1146432672545
+    },
+    {
+      "fileSize": "20MB",
+      "format": "ZIP",
+      "level": 1,
+      "compressTime": 43.235292000000015,
+      "decompressTime": 42.03604199999995,
+      "originalSize": 20971520,
+      "compressedSize": 132302,
+      "ratio": 0.6308650970458984,
+      "compressThroughput": 462.58505667083256,
+      "decompressThroughput": 475.7821871050567
+    },
+    {
+      "fileSize": "20MB",
+      "format": "ZIP",
+      "level": 6,
+      "compressTime": 68.74195800000001,
+      "decompressTime": 41.66504100000009,
+      "originalSize": 20971520,
+      "compressedSize": 61239,
+      "ratio": 0.2920103073120117,
+      "compressThroughput": 290.9431238487562,
+      "decompressThroughput": 480.0187284107066
+    },
+    {
+      "fileSize": "20MB",
+      "format": "Gzip",
+      "level": 1,
+      "compressTime": 14.510457999999971,
+      "decompressTime": 35.55095899999992,
+      "originalSize": 20971520,
+      "compressedSize": 132278,
+      "ratio": 0.6307506561279297,
+      "compressThroughput": 1378.3162461171137,
+      "decompressThroughput": 562.5727283474981
+    },
+    {
+      "fileSize": "20MB",
+      "format": "Gzip",
+      "level": 6,
+      "compressTime": 44.893542000000025,
+      "decompressTime": 31.53708299999994,
+      "originalSize": 20971520,
+      "compressedSize": 61203,
+      "ratio": 0.2918386459350586,
+      "compressThroughput": 445.4983747996536,
+      "decompressThroughput": 634.1740610569481
+    },
+    {
+      "fileSize": "250MB",
+      "format": "Tar+Gzip",
+      "level": 1,
+      "compressTime": 197.488875,
+      "decompressTime": 375.0441249999999,
+      "originalSize": 262144000,
+      "compressedSize": 1650864,
+      "ratio": 0.629754638671875,
+      "compressThroughput": 1265.8940915026226,
+      "decompressThroughput": 666.5882314514328
+    },
+    {
+      "fileSize": "250MB",
+      "format": "Tar+Gzip",
+      "level": 6,
+      "compressTime": 573.2256249999998,
+      "decompressTime": 407.17145900000014,
+      "originalSize": 262144000,
+      "compressedSize": 763072,
+      "ratio": 0.2910888671875,
+      "compressThroughput": 436.12844418809794,
+      "decompressThroughput": 613.9919546767642
+    },
+    {
+      "fileSize": "250MB",
+      "format": "ZIP",
+      "level": 1,
+      "compressTime": 398.5484999999999,
+      "decompressTime": 404.11825,
+      "originalSize": 262144000,
+      "compressedSize": 1650889,
+      "ratio": 0.629764175415039,
+      "compressThroughput": 627.2762286145854,
+      "decompressThroughput": 618.6308091752846
+    },
+    {
+      "fileSize": "250MB",
+      "format": "ZIP",
+      "level": 6,
+      "compressTime": 773.6367909999999,
+      "decompressTime": 406.1990830000004,
+      "originalSize": 262144000,
+      "compressedSize": 763106,
+      "ratio": 0.29110183715820315,
+      "compressThroughput": 323.1490576822891,
+      "decompressThroughput": 615.4617537627473
+    },
+    {
+      "fileSize": "250MB",
+      "format": "Gzip",
+      "level": 1,
+      "compressTime": 185.94020799999998,
+      "decompressTime": 417.46050000000014,
+      "originalSize": 262144000,
+      "compressedSize": 1650864,
+      "ratio": 0.629754638671875,
+      "compressThroughput": 1344.5182335173035,
+      "decompressThroughput": 598.8590537308319
+    },
+    {
+      "fileSize": "250MB",
+      "format": "Gzip",
+      "level": 6,
+      "compressTime": 563.8743750000003,
+      "decompressTime": 431.77099999999973,
+      "originalSize": 262144000,
+      "compressedSize": 763072,
+      "ratio": 0.2910888671875,
+      "compressThroughput": 443.36116533048664,
+      "decompressThroughput": 579.0106329512639
+    }
+  ]
+}

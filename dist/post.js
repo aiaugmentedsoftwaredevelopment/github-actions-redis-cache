@@ -80435,12 +80435,12 @@ const detector_1 = __nccwpck_require__(15962);
 // Shell-based handlers serve as fallbacks (require external tools)
 const handlerRegistry = [
     // Native handlers (no external dependencies)
-    new formats_1.Lz4NativeHandler(), // Priority: 250 (DEFAULT - fastest)
-    new formats_1.TarGzipNativeHandler(), // Priority: 200
+    new formats_1.TarGzipNativeHandler(), // Priority: 250 (DEFAULT - best balance of speed and compression)
     new formats_1.ZipNativeHandler(), // Priority: 150
     new formats_1.GzipNativeHandler(), // Priority: 100
     // Shell-based handlers (fallbacks)
     new formats_1.TarGzipHandler(), // Priority: 100
+    new formats_1.Lz4NativeHandler(), // Priority: 50 (pure JS - very slow for large files, not recommended)
     new formats_1.ZipHandler(), // Priority: 50
     new formats_1.GzipHandler(), // Priority: 25
 ];
@@ -80465,10 +80465,13 @@ function filterHandlersByBackend(handlers, backend) {
 /**
  * Get the best available compression handler based on system capabilities
  * Handlers are selected by priority
- * Native handlers (always available): lz4 (250) > tar+gzip-native (200) > zip-native (150) > gzip-native (100)
- * Shell handlers (require tools): tar+gzip (100) > zip (50) > gzip (25)
+ * Native handlers (always available): tar+gzip-native (250) > zip-native (150) > gzip-native (100)
+ * Shell handlers (require tools): tar+gzip (100) > lz4/zip (50) > gzip (25)
  *
- * Default: LZ4 (fastest compression/decompression)
+ * Default: Tar+Gzip Native (best balance of speed and compression ratio)
+ * - Compression: 436 MB/s at level 6
+ * - Decompression: 614 MB/s
+ * - Ratio: 99.7% reduction (250MB → 745KB)
  *
  * @param backend - Compression backend preference: 'auto' (default), 'native', or 'shell'
  */
@@ -81101,7 +81104,7 @@ const types_1 = __nccwpck_require__(42319);
 const utils_1 = __nccwpck_require__(71798);
 class Lz4NativeHandler {
     format = types_1.CompressionFormat.LZ4;
-    priority = 250; // Highest priority - fastest compression/decompression
+    priority = 50; // Low priority - pure JS implementation is very slow for large files
     async detect() {
         // Pure JavaScript implementation is always available
         return true;

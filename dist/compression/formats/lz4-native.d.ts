@@ -5,7 +5,7 @@
 import { CompressionFormat, CompressionHandler } from '../types';
 export declare class Lz4NativeHandler implements CompressionHandler {
     readonly format = CompressionFormat.LZ4;
-    readonly priority = 250;
+    readonly priority = 50;
     detect(): Promise<boolean>;
     compress(paths: string[], outputFile: string, compressionLevel: number): Promise<void>;
     private addToTar;

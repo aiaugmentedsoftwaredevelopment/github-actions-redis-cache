@@ -32,8 +32,8 @@ describe('Lz4NativeHandler', () => {
       expect(handler.format).toBe(CompressionFormat.LZ4);
     });
 
-    test('should have priority 250 (highest - default)', () => {
-      expect(handler.priority).toBe(250);
+    test('should have priority 50 (low - not recommended for large files)', () => {
+      expect(handler.priority).toBe(50);
     });
   });
 

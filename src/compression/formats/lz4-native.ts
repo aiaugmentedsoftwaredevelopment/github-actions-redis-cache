@@ -13,7 +13,7 @@ import {formatBytes} from '../../utils';
 
 export class Lz4NativeHandler implements CompressionHandler {
   readonly format = CompressionFormat.LZ4;
-  readonly priority = 250; // Highest priority - fastest compression/decompression
+  readonly priority = 50; // Low priority - pure JS implementation is very slow for large files
 
   async detect(): Promise<boolean> {
     // Pure JavaScript implementation is always available
