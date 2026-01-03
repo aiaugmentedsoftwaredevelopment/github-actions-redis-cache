@@ -164,16 +164,12 @@ async function run(): Promise<void> {
           throw tarError;
         }
 
-        // Read archive
-        const readStart = Date.now();
-        const cacheData = fs.readFileSync(tempFile);
-        const sizeBytes = cacheData.length;
-        const readTime = Date.now() - readStart;
-        core.debug(`  Archive read time: ${readTime}ms`);
-
+        // Check file size BEFORE reading into memory to prevent OOM
+        const fileStats = fs.statSync(tempFile);
+        const sizeBytes = fileStats.size;
         core.info(`   Archive size: ${formatBytes(sizeBytes)}`);
 
-        // Validate cache size against configured maximum
+        // Validate cache size against configured maximum BEFORE loading into memory
         const maxCacheSizeBytes = maxCacheSize * 1024 * 1024; // Convert MB to bytes
         const REDIS_STRING_LIMIT = 512 * 1024 * 1024; // 512MB Redis hard limit
 
@@ -206,6 +202,27 @@ async function run(): Promise<void> {
             `⚠️  Cache size (${formatBytes(sizeBytes)}) is approaching limit (${formatBytes(maxCacheSizeBytes)}). Consider reducing cache size.`
           );
         }
+
+        // Log memory usage before reading large file
+        const memUsage = process.memoryUsage();
+        core.debug(`Memory before reading archive:`);
+        core.debug(`  Heap Used: ${formatBytes(memUsage.heapUsed)}`);
+        core.debug(`  Heap Total: ${formatBytes(memUsage.heapTotal)}`);
+        core.debug(`  RSS: ${formatBytes(memUsage.rss)}`);
+
+        // Now safe to read into memory - size has been validated
+        core.debug(`Reading ${formatBytes(sizeBytes)} into memory...`);
+        const readStart = Date.now();
+        const cacheData = fs.readFileSync(tempFile);
+        const readTime = Date.now() - readStart;
+        core.debug(`  Archive read time: ${readTime}ms`);
+
+        // Log memory usage after reading
+        const memUsageAfter = process.memoryUsage();
+        core.debug(`Memory after reading archive:`);
+        core.debug(`  Heap Used: ${formatBytes(memUsageAfter.heapUsed)}`);
+        core.debug(`  Delta: +${formatBytes(memUsageAfter.heapUsed - memUsage.heapUsed)}`);
+
 
         // Save to Redis with TTL
         const fullKey = getCacheKey(key);
