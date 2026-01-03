@@ -82326,6 +82326,7 @@ async function run() {
         const compression = parseInt(core.getInput('compression'), 10);
         const compressionBackend = (core.getInput('compression-backend') ||
             'auto');
+        const maxCacheSize = parseInt(core.getInput('max-cache-size'), 10);
         core.debug('Configuration:');
         core.debug(`  Redis Host: ${redisHost}`);
         core.debug(`  Redis Port: ${redisPort}`);
@@ -82333,6 +82334,7 @@ async function run() {
         core.debug(`  TTL: ${ttl}s (${Math.round(ttl / 86400)} days)`);
         core.debug(`  Compression: Level ${compression}`);
         core.debug(`  Compression Backend: ${compressionBackend}`);
+        core.debug(`  Max Cache Size: ${maxCacheSize}MB`);
         // Parse paths
         const paths = pathsInput
             .split('\n')
@@ -82479,6 +82481,7 @@ async function run() {
                 core.saveState('ttl', ttl.toString());
                 core.saveState('compression', compression.toString());
                 core.saveState('compression-backend', compressionBackend);
+                core.saveState('max-cache-size', maxCacheSize.toString());
             }
         }
         finally {

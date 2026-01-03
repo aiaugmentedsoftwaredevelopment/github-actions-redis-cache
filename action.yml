@@ -48,6 +48,10 @@ inputs:
       - shell: Only use shell commands (requires tar/zip/gzip installed)
     required: false
     default: 'auto'
+  max-cache-size:
+    description: 'Maximum cache size in MB (default: 500MB, max: 512MB due to Redis string size limit)'
+    required: false
+    default: '500'
 
 outputs:
   cache-hit:
