@@ -223,7 +223,6 @@ async function run(): Promise<void> {
         core.debug(`  Heap Used: ${formatBytes(memUsageAfter.heapUsed)}`);
         core.debug(`  Delta: +${formatBytes(memUsageAfter.heapUsed - memUsage.heapUsed)}`);
 
-
         // Save to Redis with TTL
         const fullKey = getCacheKey(key);
         core.info(`💾 Uploading to Redis...`);
