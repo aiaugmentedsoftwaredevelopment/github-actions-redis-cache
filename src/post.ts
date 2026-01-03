@@ -24,6 +24,7 @@ async function run(): Promise<void> {
     const compression = parseInt(core.getState('compression'), 10);
     const compressionBackend = (core.getState('compression-backend') ||
       'auto') as CompressionBackend;
+    const maxCacheSize = parseInt(core.getState('max-cache-size'), 10);
 
     // Check if cache should be saved
     if (!key || !pathsInput) {
@@ -39,6 +40,7 @@ async function run(): Promise<void> {
     core.debug(`  TTL: ${ttl}s (${Math.round(ttl / 86400)} days)`);
     core.debug(`  Compression: Level ${compression}`);
     core.debug(`  Compression Backend: ${compressionBackend}`);
+    core.debug(`  Max Cache Size: ${maxCacheSize}MB`);
 
     // Parse paths
     const pathPatterns = pathsInput
@@ -171,10 +173,37 @@ async function run(): Promise<void> {
 
         core.info(`   Archive size: ${formatBytes(sizeBytes)}`);
 
-        // Check if cache size is reasonable (warn if > 1GB)
-        if (sizeBytes > 1024 * 1024 * 1024) {
+        // Validate cache size against configured maximum
+        const maxCacheSizeBytes = maxCacheSize * 1024 * 1024; // Convert MB to bytes
+        const REDIS_STRING_LIMIT = 512 * 1024 * 1024; // 512MB Redis hard limit
+
+        if (sizeBytes > maxCacheSizeBytes) {
           core.warning(
-            `⚠️  Cache size is large (${formatBytes(sizeBytes)}). Consider reducing cached paths.`
+            `⚠️  Cache size (${formatBytes(sizeBytes)}) exceeds configured maximum (${formatBytes(maxCacheSizeBytes)})`
+          );
+          core.error('');
+          core.error('❌ Cache is too large to store in Redis');
+          core.error('');
+          core.error('Solutions:');
+          core.error('  1. Reduce cached paths - only cache essential dependencies');
+          core.error('  2. Use maximum compression: compression: 9');
+          core.error('  3. Split into multiple cache keys for different components');
+          core.error('  4. Increase max-cache-size input (max: 512MB)');
+          core.error('');
+          core.error('Technical Details:');
+          core.error(`  - Current size: ${formatBytes(sizeBytes)}`);
+          core.error(`  - Configured limit: ${formatBytes(maxCacheSizeBytes)}`);
+          core.error(`  - Redis hard limit: ${formatBytes(REDIS_STRING_LIMIT)}`);
+          core.error('');
+          core.info('ℹ️  Skipping cache save - workflow will continue');
+          return; // Graceful exit, don't upload
+        }
+
+        // Warn if approaching the limit (> 80% of max)
+        const warningThreshold = maxCacheSizeBytes * 0.8;
+        if (sizeBytes > warningThreshold && sizeBytes <= maxCacheSizeBytes) {
+          core.warning(
+            `⚠️  Cache size (${formatBytes(sizeBytes)}) is approaching limit (${formatBytes(maxCacheSizeBytes)}). Consider reducing cache size.`
           );
         }
 
