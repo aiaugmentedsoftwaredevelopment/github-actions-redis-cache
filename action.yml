@@ -52,6 +52,10 @@ inputs:
     description: 'Maximum cache size in MB (default: 500MB, max: 512MB due to Redis string size limit)'
     required: false
     default: '500'
+  timeout-seconds:
+    description: 'Timeout in seconds for Redis operations (default: 300 seconds / 5 minutes)'
+    required: false
+    default: '300'
 
 outputs:
   cache-hit:

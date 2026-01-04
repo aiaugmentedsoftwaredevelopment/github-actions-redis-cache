@@ -19,11 +19,13 @@ export async function createRedisClient(
     `  Authentication: ${config.redisPassword ? 'Enabled' : 'Disabled'}`
   );
   core.debug(`  Retry strategy: Max 3 attempts with exponential backoff`);
+  core.debug(`  Command timeout: ${config.timeoutSeconds} seconds`);
 
   const redis = new Redis({
     host: config.redisHost,
     port: config.redisPort,
     password: config.redisPassword,
+    commandTimeout: config.timeoutSeconds * 1000, // Convert seconds to milliseconds
     retryStrategy: (times: number) => {
       core.debug(`  Redis connection retry attempt ${times}/3`);
       if (times > 3) {

@@ -25,6 +25,7 @@ async function run(): Promise<void> {
     const compressionBackend = (core.getState('compression-backend') ||
       'auto') as CompressionBackend;
     const maxCacheSize = parseInt(core.getState('max-cache-size'), 10);
+    const timeoutSeconds = parseInt(core.getState('timeout-seconds'), 10);
 
     // Check if cache should be saved
     if (!key || !pathsInput) {
@@ -41,6 +42,7 @@ async function run(): Promise<void> {
     core.debug(`  Compression: Level ${compression}`);
     core.debug(`  Compression Backend: ${compressionBackend}`);
     core.debug(`  Max Cache Size: ${maxCacheSize}MB`);
+    core.debug(`  Timeout: ${timeoutSeconds}s`);
 
     // Parse paths
     const pathPatterns = pathsInput
@@ -106,6 +108,7 @@ async function run(): Promise<void> {
       redisPassword,
       ttl,
       compression,
+      timeoutSeconds,
     };
 
     const redis = await createRedisClient(config);

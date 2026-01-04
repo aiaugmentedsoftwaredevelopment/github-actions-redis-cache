@@ -105,6 +105,7 @@ jobs:
 | `redis-password` | Redis/Valkey password (if auth enabled) | No | - |
 | `ttl` | Cache TTL in seconds | No | `604800` (7 days) |
 | `compression` | Compression level (0-9) | No | `6` |
+| `timeout-seconds` | Timeout for Redis operations in seconds | No | `300` (5 minutes) |
 
 ## Outputs
 
