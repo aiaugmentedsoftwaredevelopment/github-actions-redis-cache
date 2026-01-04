@@ -26,6 +26,7 @@ async function run(): Promise<void> {
     const compressionBackend = (core.getInput('compression-backend') ||
       'auto') as CompressionBackend;
     const maxCacheSize = parseInt(core.getInput('max-cache-size'), 10);
+    const timeoutSeconds = parseInt(core.getInput('timeout-seconds'), 10);
 
     core.debug('Configuration:');
     core.debug(`  Redis Host: ${redisHost}`);
@@ -35,6 +36,7 @@ async function run(): Promise<void> {
     core.debug(`  Compression: Level ${compression}`);
     core.debug(`  Compression Backend: ${compressionBackend}`);
     core.debug(`  Max Cache Size: ${maxCacheSize}MB`);
+    core.debug(`  Timeout: ${timeoutSeconds}s`);
 
     // Parse paths
     const paths = pathsInput
@@ -68,6 +70,7 @@ async function run(): Promise<void> {
       redisPassword,
       ttl,
       compression,
+      timeoutSeconds,
     };
 
     const redis = await createRedisClient(config);
@@ -212,6 +215,7 @@ async function run(): Promise<void> {
         core.saveState('compression', compression.toString());
         core.saveState('compression-backend', compressionBackend);
         core.saveState('max-cache-size', maxCacheSize.toString());
+        core.saveState('timeout-seconds', timeoutSeconds.toString());
       }
     } finally {
       await redis.quit();

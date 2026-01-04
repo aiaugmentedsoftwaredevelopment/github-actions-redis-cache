@@ -8,4 +8,5 @@ export interface CacheConfig {
   redisPassword?: string;
   ttl: number;
   compression: number;
+  timeoutSeconds: number;
 }
